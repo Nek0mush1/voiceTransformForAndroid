@@ -7,6 +7,7 @@ from app import storage
 from app.api.v1.correct_audio import router as correct_audio_router
 from app.api.v1.correct_text import router as correct_text_router
 from app.api.v1.debug import router as debug_router
+from app.api.v1.llm_config import router as llm_config_router
 from app.api.v1.profile import router as profile_router
 from app.api.v1.terms import router as terms_router
 
@@ -21,6 +22,7 @@ app.include_router(correct_audio_router, prefix="/api/v1")
 app.include_router(correct_text_router, prefix="/api/v1")
 app.include_router(profile_router, prefix="/api/v1")
 app.include_router(terms_router, prefix="/api/v1")
+app.include_router(llm_config_router, prefix="/api/v1")
 app.include_router(debug_router, prefix="/api/v1")
 
 

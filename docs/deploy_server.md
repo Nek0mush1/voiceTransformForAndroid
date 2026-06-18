@@ -144,3 +144,68 @@ http://39.106.51.35:8000
 ```
 
 After reinstalling the Android app, this is now the default backend URL.
+
+## 10. Update an Existing Server
+
+From Windows, upload the generated update package:
+
+```powershell
+scp .\backend_update_cloud.zip root@39.106.51.35:/tmp/backend_update_cloud.zip
+```
+
+Then SSH into the server:
+
+```bash
+ssh root@39.106.51.35
+```
+
+Run:
+
+```bash
+cd /opt/voice-transform-backend
+cp -a app "app.bak.$(date +%Y%m%d%H%M%S)"
+unzip -o /tmp/backend_update_cloud.zip -d /opt/voice-transform-backend
+source .venv/bin/activate
+pip install -r requirements.txt
+systemctl restart voice-transform || pkill -f "uvicorn app.main:app"
+systemctl status voice-transform --no-pager || true
+```
+
+If `systemctl restart` stopped a foreground/manual service, start it again:
+
+```bash
+cd /opt/voice-transform-backend
+source .venv/bin/activate
+nohup bash start_server_public.sh >server.log 2>&1 &
+```
+
+Verify the updated backend:
+
+```bash
+curl http://39.106.51.35:8000/health
+curl http://39.106.51.35:8000/api/v1/debug/status
+```
+
+`debug/status` should include:
+
+```json
+{"backend":"ok","asr":{"provider":"baidu","configured":true}}
+```
+
+## 11. ASR Notes
+
+Baidu Cloud short speech recognition is ASR. In this project, backend speech mode records audio on Android, uploads it to:
+
+```text
+POST /api/v1/correct-audio
+```
+
+The server then calls Baidu short speech recognition using:
+
+```bash
+BAIDU_ASR_API_KEY
+BAIDU_ASR_SECRET_KEY
+BAIDU_ASR_DEV_PID
+```
+
+If `/api/v1/correct-audio` returns a Baidu error such as `audio trans failed`, the server has reached Baidu ASR and used the key. The remaining issue is usually audio format, audio content, sample rate, or Baidu ASR product/settings.

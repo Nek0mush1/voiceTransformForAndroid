@@ -16,6 +16,15 @@ async def correct_audio_endpoint(
     app_context: str = Form("unknown"),
     audio: UploadFile = File(...),
 ) -> TextCorrectionResponse:
+    return await transcribe_correct_endpoint(user_id=user_id, app_context=app_context, audio=audio)
+
+
+@router.post("/transcribe-correct", response_model=TextCorrectionResponse)
+async def transcribe_correct_endpoint(
+    user_id: str = Form(...),
+    app_context: str = Form("unknown"),
+    audio: UploadFile = File(...),
+) -> TextCorrectionResponse:
     audio_bytes = await audio.read()
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Audio file is empty")

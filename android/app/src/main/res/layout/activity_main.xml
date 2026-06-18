@@ -60,73 +60,400 @@
             </LinearLayout>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/backendUrlLabel"
-            style="@style/FormLabel"
-            android:layout_marginTop="24dp" />
-
-        <EditText
-            android:id="@+id/backendUrlInput"
-            style="@style/FormInput"
-            android:inputType="textUri"
-            android:singleLine="true"
-            android:text="@string/backend_default_url" />
-
-        <TextView
-            android:id="@+id/userIdLabel"
-            style="@style/FormLabel"
-            android:layout_marginTop="14dp" />
-
-        <EditText
-            android:id="@+id/userIdInput"
-            style="@style/FormInput"
-            android:inputType="text"
-            android:singleLine="true"
-            android:text="local_user" />
-
-        <TextView
-            android:id="@+id/contextLabel"
-            style="@style/FormLabel" />
-
-        <Spinner
-            android:id="@+id/contextSpinner"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/input_background"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp" />
-
-        <TextView
-            android:id="@+id/rawTextLabel"
-            style="@style/FormLabel" />
-
-        <EditText
-            android:id="@+id/rawTextInput"
-            style="@style/FormInput"
-            android:gravity="top|start"
-            android:inputType="textMultiLine"
-            android:minLines="4"
-            android:text="@string/demo_raw_text" />
-
-        <LinearLayout
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_marginTop="22dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:background="@drawable/language_switch_background"
+                android:orientation="horizontal"
+                android:padding="3dp">
+
+                <Button
+                    android:id="@+id/testTabButton"
+                    style="@style/SectionTabButton" />
+
+                <Button
+                    android:id="@+id/settingsTabButton"
+                    style="@style/SectionTabButton" />
+
+                <Button
+                    android:id="@+id/profileTabButton"
+                    style="@style/SectionTabButton" />
+
+                <Button
+                    android:id="@+id/termsTabButton"
+                    style="@style/SectionTabButton" />
+
+                <Button
+                    android:id="@+id/llmTabButton"
+                    style="@style/SectionTabButton" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <LinearLayout
+            android:id="@+id/testSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/rawTextLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/rawTextInput"
+                style="@style/FormInput"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:minLines="4"
+                android:text="@string/demo_raw_text" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/voiceButton"
+                    style="@style/SecondaryButton"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/correctButton"
+                    style="@style/PrimaryButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:background="@drawable/result_background"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/correctedTextLabel"
+                    style="@style/ResultLabel" />
+
+                <TextView
+                    android:id="@+id/correctedTextValue"
+                    style="@style/ResultValue" />
+
+                <TextView
+                    android:id="@+id/matchedTermsLabel"
+                    style="@style/ResultLabel"
+                    android:layout_marginTop="14dp" />
+
+                <TextView
+                    android:id="@+id/matchedTermsValue"
+                    style="@style/ResultValue" />
+
+                <TextView
+                    android:id="@+id/reasonLabel"
+                    style="@style/ResultLabel"
+                    android:layout_marginTop="14dp" />
+
+                <TextView
+                    android:id="@+id/reasonValue"
+                    style="@style/ResultValue" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settingsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/backendUrlLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/backendUrlInput"
+                style="@style/FormInput"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:text="@string/backend_default_url" />
+
+            <TextView
+                android:id="@+id/userIdLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/userIdInput"
+                style="@style/FormInput"
+                android:inputType="text"
+                android:singleLine="true"
+                android:text="local_user" />
+
+            <TextView
+                android:id="@+id/contextLabel"
+                style="@style/FormLabel" />
+
+            <Spinner
+                android:id="@+id/contextSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/input_background"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp" />
+
+            <TextView
+                android:id="@+id/speechModeLabel"
+                style="@style/FormLabel" />
+
+            <Spinner
+                android:id="@+id/speechModeSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/input_background"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp" />
 
             <Button
-                android:id="@+id/voiceButton"
+                android:id="@+id/diagnoseBackendButton"
                 style="@style/SecondaryButton"
-                android:layout_width="0dp"
-                android:layout_weight="1" />
+                android:layout_width="match_parent"
+                android:layout_marginTop="14dp" />
+
+            <TextView
+                android:id="@+id/backendDiagnosticValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/result_background"
+                android:minHeight="64dp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/profileSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/profileLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/profileInput"
+                style="@style/FormInput"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:minLines="3" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/loadProfileButton"
+                    style="@style/SecondaryButton"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/saveProfileButton"
+                    style="@style/PrimaryButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/termsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/termLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/termInput"
+                style="@style/FormInput"
+                android:hint="cache"
+                android:inputType="text"
+                android:singleLine="true" />
+
+            <EditText
+                android:id="@+id/aliasesInput"
+                style="@style/FormInput"
+                android:layout_marginTop="8dp"
+                android:hint="alias1, alias2"
+                android:inputType="text"
+                android:singleLine="true" />
+
+            <EditText
+                android:id="@+id/categoryInput"
+                style="@style/FormInput"
+                android:layout_marginTop="8dp"
+                android:hint="course"
+                android:inputType="text"
+                android:singleLine="true" />
+
+            <EditText
+                android:id="@+id/weightInput"
+                style="@style/FormInput"
+                android:layout_marginTop="8dp"
+                android:hint="1.0"
+                android:inputType="numberDecimal"
+                android:singleLine="true" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/addTermButton"
+                    style="@style/PrimaryButton"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/refreshTermsButton"
+                    style="@style/SecondaryButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/deleteTermIdInput"
+                    style="@style/FormInput"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:hint="term id"
+                    android:inputType="number"
+                    android:singleLine="true" />
+
+                <Button
+                    android:id="@+id/deleteTermButton"
+                    style="@style/SecondaryButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/termsValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/result_background"
+                android:minHeight="72dp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/llmSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/llmBaseUrlLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/llmBaseUrlInput"
+                style="@style/FormInput"
+                android:hint="https://api.example.com/v1"
+                android:inputType="textUri"
+                android:singleLine="true" />
+
+            <TextView
+                android:id="@+id/llmApiKeyLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/llmApiKeyInput"
+                style="@style/FormInput"
+                android:hint="sk-..."
+                android:inputType="textPassword"
+                android:singleLine="true" />
+
+            <TextView
+                android:id="@+id/llmModelLabel"
+                style="@style/FormLabel" />
+
+            <EditText
+                android:id="@+id/llmModelInput"
+                style="@style/FormInput"
+                android:hint="gpt-4o-mini"
+                android:inputType="text"
+                android:singleLine="true" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/loadLlmButton"
+                    style="@style/SecondaryButton"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/saveLlmButton"
+                    style="@style/PrimaryButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
 
             <Button
-                android:id="@+id/correctButton"
-                style="@style/PrimaryButton"
-                android:layout_width="0dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1" />
+                android:id="@+id/testLlmButton"
+                style="@style/SecondaryButton"
+                android:layout_width="match_parent"
+                android:layout_marginTop="12dp" />
+
+            <TextView
+                android:id="@+id/llmStatusValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/result_background"
+                android:minHeight="64dp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
         </LinearLayout>
 
         <ProgressBar
@@ -136,41 +463,6 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
             android:visibility="gone" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:background="@drawable/result_background"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/correctedTextLabel"
-                style="@style/ResultLabel" />
-
-            <TextView
-                android:id="@+id/correctedTextValue"
-                style="@style/ResultValue" />
-
-            <TextView
-                android:id="@+id/matchedTermsLabel"
-                style="@style/ResultLabel"
-                android:layout_marginTop="14dp" />
-
-            <TextView
-                android:id="@+id/matchedTermsValue"
-                style="@style/ResultValue" />
-
-            <TextView
-                android:id="@+id/reasonLabel"
-                style="@style/ResultLabel"
-                android:layout_marginTop="14dp" />
-
-            <TextView
-                android:id="@+id/reasonValue"
-                style="@style/ResultValue" />
-        </LinearLayout>
 
         <TextView
             android:id="@+id/endpointHint"

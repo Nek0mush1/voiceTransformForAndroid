@@ -2,18 +2,25 @@
 <resources>
     <string name="app_name">Voice Transform</string>
     <string name="ime_name">Voice Transform IME</string>
+    <string name="ime_subtype_zh">&#x4E2D;&#x6587;&#x8BED;&#x97F3;</string>
     <string name="lang_zh">&#x4E2D;&#x6587;</string>
     <string name="lang_en">EN</string>
-    <string name="backend_default_url">http://10.0.2.2:8000</string>
+    <string name="backend_default_url">http://39.106.51.35:8000</string>
     <string name="demo_raw_text">&#x4ECA;&#x5929;&#x4E0A;&#x5348;&#x4E0A;&#x4E86;&#x4E24;&#x8282;&#x796D;&#x7956;&#x8BFE;</string>
     <string name="ime_voice">&#x8BED;&#x97F3;</string>
     <string name="ime_delete">&#x5220;&#x9664;</string>
     <string name="ime_space">&#x7A7A;&#x683C;</string>
     <string name="ime_enter">&#x56DE;&#x8F66;</string>
-    <string name="ime_switch">&#x5207;&#x6362;</string>
+    <string name="ime_insert_corrected">&#x63D2;&#x5165;&#x4FEE;&#x6B63;</string>
+    <string name="ime_insert_raw">&#x63D2;&#x5165;&#x539F;&#x6587;</string>
+    <string name="ime_cancel">&#x53D6;&#x6D88;</string>
     <string-array name="context_values">
         <item>chat</item>
         <item>note</item>
         <item>study</item>
+    </string-array>
+    <string-array name="speech_mode_values">
+        <item>system</item>
+        <item>backend</item>
     </string-array>
 </resources>

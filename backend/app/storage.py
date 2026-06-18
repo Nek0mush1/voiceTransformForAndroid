@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -45,8 +47,21 @@ def connect() -> sqlite3.Connection:
     return connection
 
 
+@contextmanager
+def db_connection() -> Iterator[sqlite3.Connection]:
+    connection = connect()
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def init_db() -> None:
-    with connect() as connection:
+    with db_connection() as connection:
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS profiles (
@@ -78,6 +93,14 @@ def init_db() -> None:
                 llm_error TEXT NOT NULL,
                 tools_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS llm_config (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                base_url TEXT NOT NULL DEFAULT '',
+                api_key TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
             );
             """
         )
@@ -137,6 +160,14 @@ class TraceRecord:
     created_at: str
 
 
+@dataclass(frozen=True)
+class LLMConfigRecord:
+    base_url: str
+    api_key: str
+    model: str
+    updated_at: str | None
+
+
 def row_to_profile(row: sqlite3.Row) -> ProfileRecord:
     return ProfileRecord(
         user_id=row["user_id"],
@@ -159,7 +190,7 @@ def row_to_term(row: sqlite3.Row) -> TermRecord:
 
 def get_profile(user_id: str) -> ProfileRecord:
     init_db()
-    with connect() as connection:
+    with db_connection() as connection:
         row = connection.execute(
             "SELECT user_id, profile_text, updated_at FROM profiles WHERE user_id = ?",
             (user_id,),
@@ -180,7 +211,7 @@ def get_profile(user_id: str) -> ProfileRecord:
 def update_profile(user_id: str, profile_text: str) -> ProfileRecord:
     init_db()
     timestamp = now_iso()
-    with connect() as connection:
+    with db_connection() as connection:
         connection.execute(
             """
             INSERT INTO profiles (user_id, profile_text, updated_at)
@@ -196,7 +227,7 @@ def update_profile(user_id: str, profile_text: str) -> ProfileRecord:
 
 def list_terms(user_id: str | None = None) -> list[TermRecord]:
     init_db()
-    with connect() as connection:
+    with db_connection() as connection:
         if user_id:
             rows = connection.execute(
                 """
@@ -229,7 +260,7 @@ def create_term(
     timestamp = now_iso()
     aliases = aliases or []
     aliases_json = json.dumps(aliases, ensure_ascii=False)
-    with connect() as connection:
+    with db_connection() as connection:
         connection.execute(
             """
             INSERT INTO terms (user_id, term, category, aliases_json, weight, created_at)
@@ -254,7 +285,7 @@ def create_term(
 
 def delete_term(term_id: int) -> bool:
     init_db()
-    with connect() as connection:
+    with db_connection() as connection:
         cursor = connection.execute("DELETE FROM terms WHERE id = ?", (term_id,))
         return cursor.rowcount > 0
 
@@ -272,7 +303,7 @@ def save_trace(
     tools: list[dict[str, Any]],
 ) -> None:
     init_db()
-    with connect() as connection:
+    with db_connection() as connection:
         connection.execute(
             """
             INSERT INTO traces
@@ -309,7 +340,7 @@ def save_trace(
 
 def list_traces(limit: int = 20) -> list[TraceRecord]:
     init_db()
-    with connect() as connection:
+    with db_connection() as connection:
         rows = connection.execute(
             """
             SELECT id, user_id, raw_text, corrected_text, profile_summary,
@@ -337,3 +368,56 @@ def list_traces(limit: int = 20) -> list[TraceRecord]:
             )
             for row in rows
         ]
+
+
+def get_llm_config() -> LLMConfigRecord:
+    init_db()
+    with db_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT base_url, api_key, model, updated_at
+            FROM llm_config
+            WHERE id = 1
+            """
+        ).fetchone()
+    if row is not None:
+        return LLMConfigRecord(
+            base_url=row["base_url"],
+            api_key=row["api_key"],
+            model=row["model"],
+            updated_at=row["updated_at"],
+        )
+    return LLMConfigRecord(
+        base_url=os.getenv("LLM_BASE_URL", "").strip().rstrip("/"),
+        api_key=os.getenv("LLM_API_KEY", "").strip(),
+        model=os.getenv("LLM_MODEL", "").strip(),
+        updated_at=None,
+    )
+
+
+def update_llm_config(base_url: str, api_key: str | None, model: str) -> LLMConfigRecord:
+    init_db()
+    current = get_llm_config()
+    timestamp = now_iso()
+    normalized_base_url = (base_url or "").strip().rstrip("/")
+    normalized_model = (model or "").strip()
+    normalized_api_key = current.api_key if api_key is None else api_key.strip()
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO llm_config (id, base_url, api_key, model, updated_at)
+            VALUES (1, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                base_url = excluded.base_url,
+                api_key = excluded.api_key,
+                model = excluded.model,
+                updated_at = excluded.updated_at
+            """,
+            (normalized_base_url, normalized_api_key, normalized_model, timestamp),
+        )
+    return LLMConfigRecord(
+        base_url=normalized_base_url,
+        api_key=normalized_api_key,
+        model=normalized_model,
+        updated_at=timestamp,
+    )

@@ -9,11 +9,14 @@
 - Step 1: 后端文本纠错 API 和网页演示。
 - Step 2: SQLite 用户画像、专业词库、拼音候选纠错工具。
 - Step 3: LLMRewriteTool、ContextCorrectionAgent、Agent trace。
+- Step 4: Android `InputMethodService` 输入法 MVP。
+- Step 5: 确认插入、Android 端画像/词库设置、可选后端 ASR。
+- Step 6: 后端核心测试和项目展示文档。
 
 ## 目录结构
 
 ```text
-android/      # Android 原型客户端，Step 4 将改造成输入法
+android/      # Android 输入法和设置页
 backend/      # FastAPI 后端、Agent 工具和网页演示
 docs/         # 架构说明和演示案例
 ```
@@ -27,11 +30,14 @@ backend/app/api/v1/correct_text.py      # 文本纠错接口
 backend/app/api/v1/profile.py           # 用户画像接口
 backend/app/api/v1/terms.py             # 专业词库接口
 backend/app/api/v1/debug.py             # Agent trace 查询接口
+backend/app/api/v1/correct_audio.py     # 可选后端 ASR + 纠错接口
 backend/app/schemas/                    # Pydantic 请求和响应模型
 backend/app/services/context_agent.py   # ContextCorrectionAgent 编排
 backend/app/services/pinyin_corrector.py # PinyinCorrectorTool
 backend/app/services/llm_rewrite.py     # LLMRewriteTool
+backend/app/services/baidu_asr.py       # 可选 Baidu ASR Provider
 backend/app/web/index.html              # 网页演示
+backend/tests/                          # 后端核心回归测试
 ```
 
 ## Agent 流程
@@ -113,6 +119,15 @@ DELETE /api/v1/terms/{term_id}
 GET /api/v1/debug/traces
 ```
 
+### Optional Audio
+
+```http
+POST /api/v1/transcribe-correct
+POST /api/v1/correct-audio
+```
+
+这两个接口等价，接收 multipart 音频并调用后端 ASR。第一版输入法默认不依赖它，而是使用 Android 系统 `SpeechRecognizer` 获取 raw text，再调用 `/correct-text`。
+
 ## LLM 配置
 
 支持 OpenAI-compatible Chat Completions API：
@@ -134,12 +149,30 @@ Prompt 包含：
 
 ## Android 当前状态
 
-当前 Android 目录是普通客户端原型，能够输入文本、调用后端并展示结果。它还不是系统输入法。
+Android 目录已经是系统输入法 MVP：
 
-Step 4 需要继续做：
+- `VoiceInputMethodService` 注册为 `Voice Transform IME`。
+- 键盘面板包含语音、删除、空格、回车、切换输入法按钮。
+- 默认语音路径：Android `SpeechRecognizer` -> `/api/v1/correct-text` -> 展示 raw/corrected -> 用户确认插入。
+- 失败时不直接上屏，用户可以插入原文或取消。
+- 设置页可以保存后端地址、用户 ID、app context、语音模式。
+- 设置页可以读写用户画像，新增/刷新/删除专业词条。
+- 可选后端 ASR 模式会录音上传到 `/api/v1/correct-audio`，需要后端配置 ASR key。
 
-- Kotlin Android 项目或迁移
-- `InputMethodService`
-- 输入法声明 XML
-- 语音按钮、删除、空格、回车、切换输入法按钮
-- 使用 `InputConnection.commitText()` 把修正文本插入当前输入框
+## 测试
+
+后端核心测试：
+
+```powershell
+cd backend
+python -m unittest discover -s tests -p 'test_correction_unittest.py' -v
+```
+
+Android debug 构建：
+
+```powershell
+cd android
+$env:JAVA_HOME='D:\Softs\Android Studio\jbr'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+.\gradlew.bat :app:assembleDebug
+```

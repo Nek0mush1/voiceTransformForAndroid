@@ -70,6 +70,43 @@ LLM_MODEL
 
 `POST /api/v1/correct-text` 仍然返回结果，`agent_trace.llm_success` 为 `false`，并使用 `PinyinCorrectorTool` 的修正文本。
 
+## 案例 4：Android 输入法确认插入
+
+1. 启动后端。
+2. Android 设置页保持语音模式为 `system`。
+3. 切换到 `Voice Transform IME`。
+4. 在备忘录、聊天框或浏览器搜索框中点击语音按钮。
+5. 说：`今天上午上了两节祭祖课`。
+6. 键盘面板会显示：
+   - Raw: `今天上午上了两节祭祖课`
+   - Corrected: `今天上午上了两节计组课`
+7. 点击“插入修正”后，上屏 `今天上午上了两节计组课`。
+
+如果后端请求失败，键盘仍会保留 raw text，可点击“插入原文”或“取消”。
+
+## 案例 5：手机端新增词后参与纠错
+
+在 Android 设置页新增：
+
+```text
+term: 线程
+aliases: 现金
+category: system
+weight: 1.0
+```
+
+刷新词库后，在输入法里说或在测试框里提交：
+
+```text
+老师讲了现金调度
+```
+
+期望结果：
+
+```text
+老师讲了线程调度
+```
+
 ## 常用命令
 
 启动后端：
@@ -100,4 +137,11 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/v1/debug/traces?limit=10"
 
 ```text
 http://127.0.0.1:8000/
+```
+
+后端测试：
+
+```powershell
+cd backend
+python -m unittest discover -s tests -p 'test_correction_unittest.py' -v
 ```

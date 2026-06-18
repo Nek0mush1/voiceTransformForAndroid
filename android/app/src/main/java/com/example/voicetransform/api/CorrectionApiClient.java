@@ -2,6 +2,11 @@ package com.example.voicetransform.api;
 
 import com.example.voicetransform.model.TextCorrectionRequest;
 import com.example.voicetransform.model.TextCorrectionResponse;
+import com.example.voicetransform.model.LlmConfigResponse;
+import com.example.voicetransform.model.LlmConfigTestResponse;
+import com.example.voicetransform.model.ProfileResponse;
+import com.example.voicetransform.model.TermCreateRequest;
+import com.example.voicetransform.model.TermResponse;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -16,6 +21,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,6 +121,167 @@ public class CorrectionApiClient {
         });
     }
 
+    public void getProfile(String userId, ProfileCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String responseText = requestJson("GET", "/api/v1/profile/" + encode(userId), null);
+                JSONObject object = new JSONObject(responseText);
+                callback.onSuccess(new ProfileResponse(
+                        object.getString("user_id"),
+                        object.getString("profile_text"),
+                        object.getString("updated_at")
+                ));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void updateProfile(String userId, String profileText, ProfileCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("profile_text", profileText);
+                String responseText = requestJson("PUT", "/api/v1/profile/" + encode(userId), body);
+                JSONObject object = new JSONObject(responseText);
+                callback.onSuccess(new ProfileResponse(
+                        object.getString("user_id"),
+                        object.getString("profile_text"),
+                        object.getString("updated_at")
+                ));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void listTerms(String userId, TermsCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String responseText = requestJson("GET", "/api/v1/terms?user_id=" + encode(userId), null);
+                callback.onSuccess(parseTerms(responseText));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void createTerm(TermCreateRequest request, TermCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("user_id", request.userId);
+                body.put("term", request.term);
+                body.put("category", request.category);
+                body.put("aliases", new JSONArray(request.aliases));
+                body.put("weight", request.weight);
+                String responseText = requestJson("POST", "/api/v1/terms", body);
+                callback.onSuccess(parseTerm(new JSONObject(responseText)));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void deleteTerm(int termId, EmptyCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                requestJson("DELETE", "/api/v1/terms/" + termId, null);
+                callback.onSuccess();
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void getLlmConfig(LlmConfigCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String responseText = requestJson("GET", "/api/v1/llm-config", null);
+                callback.onSuccess(parseLlmConfig(new JSONObject(responseText)));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void updateLlmConfig(String llmBaseUrl, String apiKey, String model, LlmConfigCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("base_url", llmBaseUrl);
+                body.put("api_key", apiKey);
+                body.put("model", model);
+                String responseText = requestJson("PUT", "/api/v1/llm-config", body);
+                callback.onSuccess(parseLlmConfig(new JSONObject(responseText)));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void testLlmConfig(LlmConfigTestCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String responseText = requestJson("POST", "/api/v1/llm-config/test", new JSONObject());
+                JSONObject object = new JSONObject(responseText);
+                callback.onSuccess(new LlmConfigTestResponse(
+                        object.getBoolean("success"),
+                        object.optString("message", ""),
+                        object.optString("sample_output", "")
+                ));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    public void diagnoseBackend(DiagnosticCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String healthText = requestJson("GET", "/health", null);
+                String statusText = requestJson("GET", "/api/v1/debug/status", null);
+                callback.onSuccess(healthText, statusText);
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
+    private String requestJson(String method, String path, JSONObject body) throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(baseUrl + path);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(10000);
+            connection.setRequestProperty("Accept", "application/json");
+
+            if (body != null) {
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                connection.setDoOutput(true);
+                try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8))) {
+                    writer.write(body.toString());
+                }
+            }
+
+            int statusCode = connection.getResponseCode();
+            InputStream stream = statusCode >= 200 && statusCode < 300
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+            String responseText = readAll(stream);
+            if (statusCode < 200 || statusCode >= 300) {
+                throw new IllegalStateException("HTTP " + statusCode + ": " + responseText);
+            }
+            return responseText;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
     private void writeFormField(DataOutputStream output, String boundary, String name, String value) throws Exception {
         output.writeBytes("--" + boundary + "\r\n");
         output.writeBytes("Content-Disposition: form-data; name=\"" + name + "\"\r\n");
@@ -153,6 +320,42 @@ public class CorrectionApiClient {
         );
     }
 
+    private List<TermResponse> parseTerms(String responseText) throws Exception {
+        JSONArray array = new JSONArray(responseText);
+        List<TermResponse> terms = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            terms.add(parseTerm(array.getJSONObject(i)));
+        }
+        return terms;
+    }
+
+    private TermResponse parseTerm(JSONObject object) throws Exception {
+        JSONArray aliasesJson = object.getJSONArray("aliases");
+        List<String> aliases = new ArrayList<>();
+        for (int i = 0; i < aliasesJson.length(); i++) {
+            aliases.add(aliasesJson.getString(i));
+        }
+        return new TermResponse(
+                object.getInt("id"),
+                object.getString("user_id"),
+                object.getString("term"),
+                object.optString("category", ""),
+                aliases,
+                object.optDouble("weight", 1.0),
+                object.optString("created_at", "")
+        );
+    }
+
+    private LlmConfigResponse parseLlmConfig(JSONObject object) {
+        return new LlmConfigResponse(
+                object.optString("base_url", ""),
+                object.optString("model", ""),
+                object.optBoolean("configured", false),
+                object.optString("api_key_masked", ""),
+                object.optString("updated_at", "")
+        );
+    }
+
     private String readAll(InputStream stream) throws Exception {
         if (stream == null) {
             return "";
@@ -167,8 +370,54 @@ public class CorrectionApiClient {
         return builder.toString();
     }
 
+    private String encode(String value) throws Exception {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8.name());
+    }
+
     public interface Callback {
         void onSuccess(TextCorrectionResponse response);
+
+        void onError(Exception exception);
+    }
+
+    public interface ProfileCallback {
+        void onSuccess(ProfileResponse response);
+
+        void onError(Exception exception);
+    }
+
+    public interface TermsCallback {
+        void onSuccess(List<TermResponse> response);
+
+        void onError(Exception exception);
+    }
+
+    public interface TermCallback {
+        void onSuccess(TermResponse response);
+
+        void onError(Exception exception);
+    }
+
+    public interface EmptyCallback {
+        void onSuccess();
+
+        void onError(Exception exception);
+    }
+
+    public interface LlmConfigCallback {
+        void onSuccess(LlmConfigResponse response);
+
+        void onError(Exception exception);
+    }
+
+    public interface LlmConfigTestCallback {
+        void onSuccess(LlmConfigTestResponse response);
+
+        void onError(Exception exception);
+    }
+
+    public interface DiagnosticCallback {
+        void onSuccess(String healthText, String statusText);
 
         void onError(Exception exception);
     }

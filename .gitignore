@@ -56,4 +56,5 @@ desktop.ini
 # Temporary files
 tmp/
 temp/
+.test-data/
 *.tmp
