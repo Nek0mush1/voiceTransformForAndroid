@@ -1,0 +1,59 @@
+# Python cache and build output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local runtime files
+*.log
+*.pid
+*.sqlite3
+*.db
+
+# FastAPI/Uvicorn local artifacts
+backend/uvicorn*.log
+backend/server*.log
+
+# Android and Gradle build output
+android/.gradle/
+android/build/
+android/app/build/
+android/**/build/
+android/local.properties
+android/.cxx/
+android/captures/
+android/*.iml
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,26 @@
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+
+from app.api.v1.correct_text import router as correct_text_router
+
+
+app = FastAPI(
+    title="Voice Transform Backend",
+    description="Backend MVP for context-aware text correction.",
+    version="0.1.0",
+)
+
+app.include_router(correct_text_router, prefix="/api/v1")
+
+
+@app.get("/", response_class=HTMLResponse)
+def demo_page() -> HTMLResponse:
+    html_path = Path(__file__).parent / "web" / "index.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
