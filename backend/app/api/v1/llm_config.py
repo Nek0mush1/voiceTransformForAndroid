@@ -21,6 +21,7 @@ def update_llm_config(payload: LLMConfigRequest) -> LLMConfigResponse:
             base_url=payload.base_url,
             api_key=api_key,
             model=payload.model,
+            wire_api=payload.wire_api,
         )
     )
 
@@ -31,10 +32,11 @@ def test_llm_config() -> LLMConfigTestResponse:
     if not config.base_url or not config.api_key or not config.model:
         return LLMConfigTestResponse(success=False, message="LLM not configured")
 
-    result = LLMRewriteTool().call_chat_completion(
+    result = LLMRewriteTool().call_model(
         base_url=config.base_url,
         api_key=config.api_key,
         model=config.model,
+        wire_api=config.wire_api,
         messages=[
             {
                 "role": "system",
@@ -60,6 +62,7 @@ def to_response(record: storage.LLMConfigRecord) -> LLMConfigResponse:
     return LLMConfigResponse(
         base_url=record.base_url,
         model=record.model,
+        wire_api=record.wire_api,
         configured=bool(record.base_url and record.api_key and record.model),
         api_key_masked=mask_api_key(record.api_key),
         updated_at=record.updated_at,

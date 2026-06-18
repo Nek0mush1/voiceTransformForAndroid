@@ -23,4 +23,8 @@
         <item>system</item>
         <item>backend</item>
     </string-array>
+    <string-array name="llm_wire_api_values">
+        <item>responses</item>
+        <item>chat_completions</item>
+    </string-array>
 </resources>

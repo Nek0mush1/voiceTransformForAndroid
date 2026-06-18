@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 from app import storage
 from app.storage import ProfileRecord, TermRecord
 from app.services.pinyin_corrector import PinyinCandidate
+
+
+DEFAULT_LLM_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/126.0.0.0 Safari/537.36"
+)
 
 
 @dataclass(frozen=True)
@@ -31,10 +40,11 @@ class LLMRewriteTool:
             return LLMResult(text=fallback_text, success=False, error="LLM not configured")
 
         prompt = self._build_prompt(raw_text, fallback_text, profile, terms, candidates)
-        result = self.call_chat_completion(
+        result = self.call_model(
             base_url=config.base_url,
             api_key=config.api_key,
             model=config.model,
+            wire_api=config.wire_api,
             messages=[
                 {
                     "role": "system",
@@ -55,6 +65,32 @@ class LLMRewriteTool:
             return LLMResult(text=fallback_text, success=False, error="LLM returned empty text")
         return result
 
+    def call_model(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        wire_api: str,
+        messages: list[dict[str, str]],
+        timeout: int = 12,
+    ) -> LLMResult:
+        normalized_wire_api = storage.normalize_llm_wire_api(wire_api)
+        if normalized_wire_api == storage.LLM_WIRE_API_RESPONSES:
+            return self.call_response(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                messages=messages,
+                timeout=timeout,
+            )
+        return self.call_chat_completion(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            messages=messages,
+            timeout=timeout,
+        )
+
     def call_chat_completion(
         self,
         base_url: str,
@@ -72,17 +108,47 @@ class LLMRewriteTool:
             request = urllib.request.Request(
                 url=self._chat_completions_url(base_url),
                 data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers=self._headers(api_key),
                 method="POST",
             )
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            text = payload["choices"][0]["message"]["content"].strip()
+            text = self._extract_chat_completion_text(payload)
             return LLMResult(text=text, success=bool(text))
-        except (KeyError, TimeoutError, urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as error:
+        except urllib.error.HTTPError as error:
+            return LLMResult(text="", success=False, error=self._format_http_error(error))
+        except (KeyError, TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
+            return LLMResult(text="", success=False, error=str(error))
+
+    def call_response(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        messages: list[dict[str, str]],
+        timeout: int = 12,
+    ) -> LLMResult:
+        instructions, input_text = self._messages_to_response_parts(messages)
+        body = {
+            "model": model,
+            "input": input_text,
+        }
+        if instructions:
+            body["instructions"] = instructions
+        try:
+            request = urllib.request.Request(
+                url=self._responses_url(base_url),
+                data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                headers=self._headers(api_key),
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            text = self._extract_response_text(payload)
+            return LLMResult(text=text, success=bool(text))
+        except urllib.error.HTTPError as error:
+            return LLMResult(text="", success=False, error=self._format_http_error(error))
+        except (KeyError, TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
             return LLMResult(text="", success=False, error=str(error))
 
     def _build_prompt(
@@ -114,3 +180,82 @@ class LLMRewriteTool:
         if normalized.endswith("/chat/completions"):
             return normalized
         return f"{normalized}/chat/completions"
+
+    def _responses_url(self, base_url: str) -> str:
+        normalized = base_url.strip().rstrip("/")
+        if normalized.endswith("/responses"):
+            return normalized
+        return f"{normalized}/responses"
+
+    def _headers(self, api_key: str) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": os.getenv("LLM_USER_AGENT", DEFAULT_LLM_USER_AGENT).strip()
+            or DEFAULT_LLM_USER_AGENT,
+        }
+
+    def _messages_to_response_parts(self, messages: list[dict[str, str]]) -> tuple[str, str]:
+        instructions = "\n\n".join(
+            message.get("content", "")
+            for message in messages
+            if message.get("role") == "system" and message.get("content")
+        )
+        input_text = "\n\n".join(
+            f"{message.get('role', 'user')}: {message.get('content', '')}"
+            for message in messages
+            if message.get("role") != "system" and message.get("content")
+        )
+        return instructions, input_text
+
+    def _extract_chat_completion_text(self, payload: dict[str, Any]) -> str:
+        content = payload["choices"][0]["message"]["content"]
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            return self._extract_text_from_content_list(content)
+        return ""
+
+    def _extract_response_text(self, payload: dict[str, Any]) -> str:
+        output_text = payload.get("output_text")
+        if isinstance(output_text, str):
+            return output_text.strip()
+
+        pieces: list[str] = []
+        for item in payload.get("output", []):
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content", [])
+            if isinstance(content, list):
+                text = self._extract_text_from_content_list(content)
+                if text:
+                    pieces.append(text)
+        return "\n".join(pieces).strip()
+
+    def _extract_text_from_content_list(self, content: list[Any]) -> str:
+        pieces: list[str] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            text = part.get("text")
+            if isinstance(text, str):
+                pieces.append(text)
+                continue
+            nested_text = part.get("content")
+            if isinstance(nested_text, str):
+                pieces.append(nested_text)
+        return "\n".join(pieces).strip()
+
+    def _format_http_error(self, error: urllib.error.HTTPError) -> str:
+        details = ""
+        try:
+            details = error.read().decode("utf-8", errors="replace").strip()
+        except Exception:
+            details = ""
+        message = f"HTTP {error.code} {error.reason}".strip()
+        if error.url:
+            message = f"{message} at {error.url}"
+        if details:
+            message = f"{message}: {details}"
+        return message

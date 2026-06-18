@@ -11,6 +11,10 @@ from collections.abc import Iterator
 from typing import Any
 
 
+LLM_WIRE_API_CHAT_COMPLETIONS = "chat_completions"
+LLM_WIRE_API_RESPONSES = "responses"
+DEFAULT_LLM_WIRE_API = LLM_WIRE_API_CHAT_COMPLETIONS
+
 DEFAULT_PROFILE = (
     "计算机专业大二学生，正在学习计组、计网、操作系统、数据结构、Agent 开发。"
 )
@@ -100,11 +104,27 @@ def init_db() -> None:
                 base_url TEXT NOT NULL DEFAULT '',
                 api_key TEXT NOT NULL DEFAULT '',
                 model TEXT NOT NULL DEFAULT '',
+                wire_api TEXT NOT NULL DEFAULT 'chat_completions',
                 updated_at TEXT NOT NULL
             );
             """
         )
+        ensure_llm_config_schema(connection)
         seed_defaults(connection)
+
+
+def ensure_llm_config_schema(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(llm_config)").fetchall()
+    }
+    if "wire_api" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE llm_config
+            ADD COLUMN wire_api TEXT NOT NULL DEFAULT 'chat_completions'
+            """
+        )
 
 
 def seed_defaults(connection: sqlite3.Connection) -> None:
@@ -165,6 +185,7 @@ class LLMConfigRecord:
     base_url: str
     api_key: str
     model: str
+    wire_api: str
     updated_at: str | None
 
 
@@ -375,7 +396,7 @@ def get_llm_config() -> LLMConfigRecord:
     with db_connection() as connection:
         row = connection.execute(
             """
-            SELECT base_url, api_key, model, updated_at
+            SELECT base_url, api_key, model, wire_api, updated_at
             FROM llm_config
             WHERE id = 1
             """
@@ -385,39 +406,58 @@ def get_llm_config() -> LLMConfigRecord:
             base_url=row["base_url"],
             api_key=row["api_key"],
             model=row["model"],
+            wire_api=normalize_llm_wire_api(row["wire_api"]),
             updated_at=row["updated_at"],
         )
     return LLMConfigRecord(
         base_url=os.getenv("LLM_BASE_URL", "").strip().rstrip("/"),
         api_key=os.getenv("LLM_API_KEY", "").strip(),
         model=os.getenv("LLM_MODEL", "").strip(),
+        wire_api=normalize_llm_wire_api(os.getenv("LLM_WIRE_API", DEFAULT_LLM_WIRE_API)),
         updated_at=None,
     )
 
 
-def update_llm_config(base_url: str, api_key: str | None, model: str) -> LLMConfigRecord:
+def update_llm_config(
+    base_url: str,
+    api_key: str | None,
+    model: str,
+    wire_api: str = DEFAULT_LLM_WIRE_API,
+) -> LLMConfigRecord:
     init_db()
     current = get_llm_config()
     timestamp = now_iso()
     normalized_base_url = (base_url or "").strip().rstrip("/")
     normalized_model = (model or "").strip()
     normalized_api_key = current.api_key if api_key is None else api_key.strip()
+    normalized_wire_api = normalize_llm_wire_api(wire_api)
     with db_connection() as connection:
         connection.execute(
             """
-            INSERT INTO llm_config (id, base_url, api_key, model, updated_at)
-            VALUES (1, ?, ?, ?, ?)
+            INSERT INTO llm_config (id, base_url, api_key, model, wire_api, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 base_url = excluded.base_url,
                 api_key = excluded.api_key,
                 model = excluded.model,
+                wire_api = excluded.wire_api,
                 updated_at = excluded.updated_at
             """,
-            (normalized_base_url, normalized_api_key, normalized_model, timestamp),
+            (normalized_base_url, normalized_api_key, normalized_model, normalized_wire_api, timestamp),
         )
     return LLMConfigRecord(
         base_url=normalized_base_url,
         api_key=normalized_api_key,
         model=normalized_model,
+        wire_api=normalized_wire_api,
         updated_at=timestamp,
     )
+
+
+def normalize_llm_wire_api(wire_api: str | None) -> str:
+    value = (wire_api or "").strip().lower().replace("-", "_")
+    if value in {"responses", "response"}:
+        return LLM_WIRE_API_RESPONSES
+    if value in {"chat", "chat_completion", "chat_completions"}:
+        return LLM_WIRE_API_CHAT_COMPLETIONS
+    return DEFAULT_LLM_WIRE_API

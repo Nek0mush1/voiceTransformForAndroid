@@ -48,7 +48,7 @@ The launcher Activity is split into sections so the home screen is not one long 
 - Settings: backend URL, user ID, app context, and speech mode.
 - Profile: load/save the user profile.
 - Terms: add, refresh, and delete professional terms.
-- LLM: configure and test an OpenAI-compatible LLM gateway.
+- LLM: configure and test an OpenAI-compatible LLM gateway. It supports both `responses` and `chat_completions` wire APIs.
 
 Backend URL, user ID, app context, and speech mode are saved locally.
 
@@ -69,10 +69,19 @@ For an API relay, set the LLM URL to the relay's OpenAI-compatible `/v1` base UR
 https://api.example.com/v1
 ```
 
-The backend will call:
+Choose the LLM Wire API that matches the relay:
 
 ```text
-POST {LLM URL}/chat/completions
+responses        -> POST {LLM URL}/responses
+chat_completions -> POST {LLM URL}/chat/completions
+```
+
+For a relay configured like Codex `wire_api = "responses"`, use:
+
+```text
+URL: https://www.micuapi.ai/v1
+Model: gpt-5.5
+Wire API: responses
 ```
 
 Leave the API key field empty when saving if you only want to change the URL or model and keep the saved key.

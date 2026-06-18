@@ -418,6 +418,15 @@
                 android:inputType="text"
                 android:singleLine="true" />
 
+            <TextView
+                android:id="@+id/llmWireApiLabel"
+                style="@style/FormLabel" />
+
+            <Spinner
+                android:id="@+id/llmWireApiSpinner"
+                style="@style/FormInput"
+                android:entries="@array/llm_wire_api_values" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

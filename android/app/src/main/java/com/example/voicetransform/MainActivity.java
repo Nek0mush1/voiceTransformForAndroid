@@ -43,6 +43,8 @@ public class MainActivity extends Activity {
     private static final int SECTION_PROFILE = 2;
     private static final int SECTION_TERMS = 3;
     private static final int SECTION_LLM = 4;
+    private static final String LLM_WIRE_API_RESPONSES = "responses";
+    private static final String LLM_WIRE_API_CHAT_COMPLETIONS = "chat_completions";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable recordingTimeoutRunnable = this::stopRecordingAndUpload;
@@ -68,6 +70,7 @@ public class MainActivity extends Activity {
     private EditText llmBaseUrlInput;
     private EditText llmApiKeyInput;
     private EditText llmModelInput;
+    private Spinner llmWireApiSpinner;
     private Button chineseButton;
     private Button englishButton;
     private Button testTabButton;
@@ -103,6 +106,7 @@ public class MainActivity extends Activity {
     private TextView llmBaseUrlLabel;
     private TextView llmApiKeyLabel;
     private TextView llmModelLabel;
+    private TextView llmWireApiLabel;
     private TextView llmStatusValue;
     private TextView termsValue;
     private TextView rawTextLabel;
@@ -147,6 +151,7 @@ public class MainActivity extends Activity {
         llmBaseUrlInput = findViewById(R.id.llmBaseUrlInput);
         llmApiKeyInput = findViewById(R.id.llmApiKeyInput);
         llmModelInput = findViewById(R.id.llmModelInput);
+        llmWireApiSpinner = findViewById(R.id.llmWireApiSpinner);
         termsValue = findViewById(R.id.termsValue);
         rawTextLabel = findViewById(R.id.rawTextLabel);
         userIdInput = findViewById(R.id.userIdInput);
@@ -180,6 +185,7 @@ public class MainActivity extends Activity {
         llmBaseUrlLabel = findViewById(R.id.llmBaseUrlLabel);
         llmApiKeyLabel = findViewById(R.id.llmApiKeyLabel);
         llmModelLabel = findViewById(R.id.llmModelLabel);
+        llmWireApiLabel = findViewById(R.id.llmWireApiLabel);
         llmStatusValue = findViewById(R.id.llmStatusValue);
         correctedTextLabel = findViewById(R.id.correctedTextLabel);
         correctedTextValue = findViewById(R.id.correctedTextValue);
@@ -207,6 +213,15 @@ public class MainActivity extends Activity {
         );
         speechModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         speechModeSpinner.setAdapter(speechModeAdapter);
+
+        ArrayAdapter<CharSequence> llmWireApiAdapter = ArrayAdapter.createFromResource(
+                this,
+                R.array.llm_wire_api_values,
+                android.R.layout.simple_spinner_item
+        );
+        llmWireApiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        llmWireApiSpinner.setAdapter(llmWireApiAdapter);
+        setSpinnerSelection(llmWireApiSpinner, LLM_WIRE_API_RESPONSES);
     }
 
     private void loadSavedSettings() {
@@ -311,9 +326,10 @@ public class MainActivity extends Activity {
         llmBaseUrlLabel.setText(isChinese ? "LLM \u4e2d\u8f6c\u7ad9\u5730\u5740" : "LLM Gateway URL");
         llmApiKeyLabel.setText(isChinese ? "LLM API Key" : "LLM API Key");
         llmModelLabel.setText(isChinese ? "LLM \u6a21\u578b" : "LLM Model");
+        llmWireApiLabel.setText(isChinese ? "LLM \u63a5\u53e3\u683c\u5f0f" : "LLM Wire API");
         llmBaseUrlInput.setHint(isChinese ? "\u4f8b\u5982 https://api.example.com/v1" : "Example: https://api.example.com/v1");
         llmApiKeyInput.setHint(isChinese ? "\u7559\u7a7a\u8868\u793a\u4e0d\u8986\u76d6\u5df2\u4fdd\u5b58 Key" : "Leave empty to keep saved key");
-        llmModelInput.setHint(isChinese ? "\u4f8b\u5982 gpt-4o-mini / deepseek-chat" : "Example: gpt-4o-mini / deepseek-chat");
+        llmModelInput.setHint(isChinese ? "\u4f8b\u5982 gpt-5.5 / deepseek-chat" : "Example: gpt-5.5 / deepseek-chat");
         loadLlmButton.setText(isChinese ? "\u62c9\u53d6\u914d\u7f6e" : "Load Config");
         saveLlmButton.setText(isChinese ? "\u4fdd\u5b58\u914d\u7f6e" : "Save Config");
         testLlmButton.setText(isChinese ? "\u6d4b\u8bd5 LLM \u8fde\u63a5" : "Test LLM Connection");
@@ -862,6 +878,7 @@ public class MainActivity extends Activity {
                     setLoading(false);
                     llmBaseUrlInput.setText(response.baseUrl);
                     llmModelInput.setText(response.model);
+                    setSpinnerSelection(llmWireApiSpinner, normalizeWireApi(response.wireApi));
                     llmApiKeyInput.setText("");
                     llmStatusValue.setText(formatLlmStatus(response));
                 });
@@ -879,6 +896,7 @@ public class MainActivity extends Activity {
         String llmBaseUrl = llmBaseUrlInput.getText().toString().trim();
         String apiKey = llmApiKeyInput.getText().toString().trim();
         String model = llmModelInput.getText().toString().trim();
+        String wireApi = getSelectedLlmWireApi();
         if (!validateBackendUrl(backendUrl)) {
             showSection(SECTION_SETTINGS);
             return;
@@ -893,12 +911,13 @@ public class MainActivity extends Activity {
         }
         saveCurrentSettings();
         setLoading(true);
-        new CorrectionApiClient(backendUrl).updateLlmConfig(llmBaseUrl, apiKey, model, new CorrectionApiClient.LlmConfigCallback() {
+        new CorrectionApiClient(backendUrl).updateLlmConfig(llmBaseUrl, apiKey, model, wireApi, new CorrectionApiClient.LlmConfigCallback() {
             @Override
             public void onSuccess(LlmConfigResponse response) {
                 runOnUiThread(() -> {
                     setLoading(false);
                     llmApiKeyInput.setText("");
+                    setSpinnerSelection(llmWireApiSpinner, normalizeWireApi(response.wireApi));
                     llmStatusValue.setText(formatLlmStatus(response));
                     Toast.makeText(MainActivity.this, isChinese ? "LLM \u914d\u7f6e\u5df2\u4fdd\u5b58" : "LLM config saved", Toast.LENGTH_LONG).show();
                 });
@@ -1113,6 +1132,30 @@ public class MainActivity extends Activity {
         return builder.toString();
     }
 
+    private String getSelectedLlmWireApi() {
+        Object selected = llmWireApiSpinner.getSelectedItem();
+        return normalizeWireApi(selected == null ? LLM_WIRE_API_RESPONSES : selected.toString());
+    }
+
+    private String normalizeWireApi(String wireApi) {
+        if (LLM_WIRE_API_CHAT_COMPLETIONS.equals(wireApi)) {
+            return LLM_WIRE_API_CHAT_COMPLETIONS;
+        }
+        return LLM_WIRE_API_RESPONSES;
+    }
+
+    private void setSpinnerSelection(Spinner spinner, String value) {
+        if (spinner == null || value == null) {
+            return;
+        }
+        for (int i = 0; i < spinner.getCount(); i++) {
+            if (value.equals(spinner.getItemAtPosition(i).toString())) {
+                spinner.setSelection(i);
+                return;
+            }
+        }
+    }
+
     private String formatLlmStatus(LlmConfigResponse response) {
         String configuredText = response.configured
                 ? (isChinese ? "\u5df2\u914d\u7f6e" : "configured")
@@ -1127,12 +1170,14 @@ public class MainActivity extends Activity {
             return "\u72b6\u6001: " + configuredText
                     + "\n\u5730\u5740: " + emptyToDash(response.baseUrl)
                     + "\n\u6a21\u578b: " + emptyToDash(response.model)
+                    + "\n\u63a5\u53e3: " + emptyToDash(response.wireApi)
                     + "\nKey: " + keyText
                     + "\n\u66f4\u65b0\u65f6\u95f4: " + updatedText;
         }
         return "Status: " + configuredText
                 + "\nURL: " + emptyToDash(response.baseUrl)
                 + "\nModel: " + emptyToDash(response.model)
+                + "\nWire API: " + emptyToDash(response.wireApi)
                 + "\nKey: " + keyText
                 + "\nUpdated: " + updatedText;
     }

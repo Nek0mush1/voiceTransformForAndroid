@@ -106,13 +106,17 @@ LLM is optional. If it is not configured or fails, correction falls back to the 
 $env:LLM_BASE_URL="https://api.example.com/v1"
 $env:LLM_API_KEY="your_api_key"
 $env:LLM_MODEL="your_model"
+$env:LLM_WIRE_API="chat_completions"
 ```
 
-The backend calls:
+Supported `LLM_WIRE_API` values:
 
 ```text
-POST {LLM_BASE_URL}/chat/completions
+chat_completions -> POST {LLM_BASE_URL}/chat/completions
+responses        -> POST {LLM_BASE_URL}/responses
 ```
+
+For a relay configured like Codex `wire_api = "responses"`, set the Android LLM Wire API field to `responses`.
 
 ## Optional Backend ASR
 

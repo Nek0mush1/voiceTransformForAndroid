@@ -24,6 +24,7 @@ def debug_status() -> dict[str, object]:
             "configured": bool(llm_config.base_url and llm_config.api_key and llm_config.model),
             "base_url": llm_config.base_url,
             "model": llm_config.model,
+            "wire_api": llm_config.wire_api,
         },
     }
 

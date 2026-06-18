@@ -205,13 +205,14 @@ public class CorrectionApiClient {
         });
     }
 
-    public void updateLlmConfig(String llmBaseUrl, String apiKey, String model, LlmConfigCallback callback) {
+    public void updateLlmConfig(String llmBaseUrl, String apiKey, String model, String wireApi, LlmConfigCallback callback) {
         EXECUTOR_SERVICE.execute(() -> {
             try {
                 JSONObject body = new JSONObject();
                 body.put("base_url", llmBaseUrl);
                 body.put("api_key", apiKey);
                 body.put("model", model);
+                body.put("wire_api", wireApi);
                 String responseText = requestJson("PUT", "/api/v1/llm-config", body);
                 callback.onSuccess(parseLlmConfig(new JSONObject(responseText)));
             } catch (Exception exception) {
@@ -350,6 +351,7 @@ public class CorrectionApiClient {
         return new LlmConfigResponse(
                 object.optString("base_url", ""),
                 object.optString("model", ""),
+                object.optString("wire_api", "chat_completions"),
                 object.optBoolean("configured", false),
                 object.optString("api_key_masked", ""),
                 object.optString("updated_at", "")
