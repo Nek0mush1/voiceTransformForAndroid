@@ -8,6 +8,9 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -68,6 +71,70 @@ public class CorrectionApiClient {
                 }
             }
         });
+    }
+
+    public void correctAudio(File audioFile, String userId, String appContext, Callback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            HttpURLConnection connection = null;
+            String boundary = "VoiceTransformBoundary" + System.currentTimeMillis();
+            try {
+                URL url = new URL(baseUrl + "/api/v1/correct-audio");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(60000);
+                connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setDoOutput(true);
+
+                try (DataOutputStream output = new DataOutputStream(connection.getOutputStream())) {
+                    writeFormField(output, boundary, "user_id", userId);
+                    writeFormField(output, boundary, "app_context", appContext);
+                    writeFileField(output, boundary, "audio", audioFile, "audio/mp4");
+                    output.writeBytes("--" + boundary + "--\r\n");
+                    output.flush();
+                }
+
+                int statusCode = connection.getResponseCode();
+                InputStream stream = statusCode >= 200 && statusCode < 300
+                        ? connection.getInputStream()
+                        : connection.getErrorStream();
+                String responseText = readAll(stream);
+                if (statusCode < 200 || statusCode >= 300) {
+                    throw new IllegalStateException("HTTP " + statusCode + ": " + responseText);
+                }
+
+                callback.onSuccess(parseResponse(responseText));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        });
+    }
+
+    private void writeFormField(DataOutputStream output, String boundary, String name, String value) throws Exception {
+        output.writeBytes("--" + boundary + "\r\n");
+        output.writeBytes("Content-Disposition: form-data; name=\"" + name + "\"\r\n");
+        output.writeBytes("Content-Type: text/plain; charset=UTF-8\r\n\r\n");
+        output.write(value.getBytes(StandardCharsets.UTF_8));
+        output.writeBytes("\r\n");
+    }
+
+    private void writeFileField(DataOutputStream output, String boundary, String name, File file, String contentType) throws Exception {
+        output.writeBytes("--" + boundary + "\r\n");
+        output.writeBytes("Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + file.getName() + "\"\r\n");
+        output.writeBytes("Content-Type: " + contentType + "\r\n\r\n");
+        try (FileInputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count);
+            }
+        }
+        output.writeBytes("\r\n");
     }
 
     private TextCorrectionResponse parseResponse(String responseText) throws Exception {

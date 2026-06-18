@@ -3,13 +3,10 @@ package com.example.voicetransform;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaRecorder;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.speech.RecognitionListener;
-import android.speech.RecognizerIntent;
-import android.speech.SpeechRecognizer;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -21,19 +18,21 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import com.example.voicetransform.api.CorrectionApiClient;
-import com.example.voicetransform.model.TextCorrectionRequest;
 import com.example.voicetransform.model.TextCorrectionResponse;
 
-import java.util.ArrayList;
-import java.util.Locale;
+import java.io.File;
 
 public class VoiceInputMethodService extends InputMethodService {
+    private static final long MAX_RECORDING_MS = 60000;
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable recordingTimeoutRunnable = this::stopRecordingAndUpload;
 
     private TextView statusText;
     private Button voiceButton;
-    private SpeechRecognizer speechRecognizer;
-    private boolean isListening;
+    private MediaRecorder mediaRecorder;
+    private File recordingFile;
+    private boolean isRecording;
     private boolean isCorrecting;
 
     @Override
@@ -59,21 +58,21 @@ public class VoiceInputMethodService extends InputMethodService {
     @Override
     public void onFinishInput() {
         super.onFinishInput();
-        stopListening();
+        cancelRecording();
     }
 
     @Override
     public void onDestroy() {
-        stopListening();
-        if (speechRecognizer != null) {
-            speechRecognizer.destroy();
-            speechRecognizer = null;
-        }
+        cancelRecording();
         super.onDestroy();
     }
 
     private void startVoiceInput() {
-        if (isListening || isCorrecting) {
+        if (isCorrecting) {
+            return;
+        }
+        if (isRecording) {
+            stopRecordingAndUpload();
             return;
         }
         if (!hasAudioPermission()) {
@@ -81,97 +80,74 @@ public class VoiceInputMethodService extends InputMethodService {
             openSettingsActivity();
             return;
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            setStatus("No speech recognizer available");
-            return;
-        }
-
-        ensureSpeechRecognizer();
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.CHINA.toLanguageTag());
-        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-
-        isListening = true;
-        voiceButton.setEnabled(false);
-        setStatus("Listening...");
-        speechRecognizer.startListening(intent);
+        startRecording();
     }
 
-    private void ensureSpeechRecognizer() {
-        if (speechRecognizer != null) {
-            return;
+    private void startRecording() {
+        try {
+            recordingFile = new File(getCacheDir(), "voice_input_" + System.currentTimeMillis() + ".m4a");
+            mediaRecorder = createRecorder(recordingFile);
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+            isRecording = true;
+            voiceButton.setText("Stop");
+            setStatus("Recording... tap again to stop");
+            mainHandler.postDelayed(recordingTimeoutRunnable, MAX_RECORDING_MS);
+        } catch (Exception exception) {
+            cancelRecording();
+            setStatus("Recording failed: " + exception.getClass().getSimpleName());
         }
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            @Override
-            public void onReadyForSpeech(Bundle params) {
-                setStatus("Listening...");
-            }
-
-            @Override
-            public void onBeginningOfSpeech() {
-                setStatus("Listening...");
-            }
-
-            @Override
-            public void onRmsChanged(float rmsdB) {
-            }
-
-            @Override
-            public void onBufferReceived(byte[] buffer) {
-            }
-
-            @Override
-            public void onEndOfSpeech() {
-                setStatus("Recognizing...");
-            }
-
-            @Override
-            public void onError(int error) {
-                isListening = false;
-                voiceButton.setEnabled(true);
-                setStatus("Speech failed: " + speechErrorName(error));
-            }
-
-            @Override
-            public void onResults(Bundle results) {
-                isListening = false;
-                voiceButton.setEnabled(true);
-                String rawText = firstResult(results);
-                if (TextUtils.isEmpty(rawText)) {
-                    setStatus("No speech text");
-                    return;
-                }
-                correctAndCommit(rawText);
-            }
-
-            @Override
-            public void onPartialResults(Bundle partialResults) {
-                String rawText = firstResult(partialResults);
-                if (!TextUtils.isEmpty(rawText)) {
-                    setStatus("Listening: " + rawText);
-                }
-            }
-
-            @Override
-            public void onEvent(int eventType, Bundle params) {
-            }
-        });
     }
 
-    private void correctAndCommit(String rawText) {
+    private MediaRecorder createRecorder(File outputFile) {
+        MediaRecorder recorder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? new MediaRecorder(this)
+                : new MediaRecorder();
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        recorder.setAudioSamplingRate(16000);
+        recorder.setAudioChannels(1);
+        recorder.setAudioEncodingBitRate(64000);
+        recorder.setOutputFile(outputFile.getAbsolutePath());
+        return recorder;
+    }
+
+    private void stopRecordingAndUpload() {
+        if (!isRecording) {
+            return;
+        }
+        File audioFile = recordingFile;
+        try {
+            mediaRecorder.stop();
+        } catch (RuntimeException exception) {
+            cancelRecording();
+            setStatus("Recording too short");
+            return;
+        } finally {
+            releaseRecorder();
+        }
+
+        isRecording = false;
+        mainHandler.removeCallbacks(recordingTimeoutRunnable);
+        voiceButton.setText(R.string.ime_voice);
+        if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
+            setStatus("No audio recorded");
+            return;
+        }
+        uploadAudioAndCommit(audioFile);
+    }
+
+    private void uploadAudioAndCommit(File audioFile) {
         isCorrecting = true;
         voiceButton.setEnabled(false);
-        setStatus("Correcting: " + rawText);
+        setStatus("Uploading audio...");
 
         String backendUrl = AppSettings.getBackendUrl(this);
         String userId = AppSettings.getUserId(this);
         String appContext = AppSettings.getAppContext(this);
-        TextCorrectionRequest request = new TextCorrectionRequest(userId, rawText, appContext);
 
-        new CorrectionApiClient(backendUrl).correctText(request, new CorrectionApiClient.Callback() {
+        new CorrectionApiClient(backendUrl).correctAudio(audioFile, userId, appContext, new CorrectionApiClient.Callback() {
             @Override
             public void onSuccess(TextCorrectionResponse response) {
                 mainHandler.post(() -> {
@@ -179,6 +155,7 @@ public class VoiceInputMethodService extends InputMethodService {
                     voiceButton.setEnabled(true);
                     commitText(response.correctedText);
                     setStatus("Inserted: " + response.correctedText);
+                    deleteRecordingFile(audioFile);
                 });
             }
 
@@ -187,7 +164,8 @@ public class VoiceInputMethodService extends InputMethodService {
                 mainHandler.post(() -> {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
-                    setStatus("Request failed. Backend: " + backendUrl);
+                    setStatus("Audio request failed. Backend: " + backendUrl);
+                    deleteRecordingFile(audioFile);
                 });
             }
         });
@@ -222,12 +200,33 @@ public class VoiceInputMethodService extends InputMethodService {
         }
     }
 
-    private void stopListening() {
-        if (speechRecognizer != null && isListening) {
-            speechRecognizer.cancel();
+    private void cancelRecording() {
+        mainHandler.removeCallbacks(recordingTimeoutRunnable);
+        if (mediaRecorder != null) {
+            try {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                }
+            } catch (RuntimeException ignored) {
+            }
+            releaseRecorder();
         }
-        isListening = false;
+        isRecording = false;
         isCorrecting = false;
+        if (voiceButton != null) {
+            voiceButton.setText(R.string.ime_voice);
+            voiceButton.setEnabled(true);
+        }
+        deleteRecordingFile(recordingFile);
+        recordingFile = null;
+    }
+
+    private void releaseRecorder() {
+        if (mediaRecorder != null) {
+            mediaRecorder.reset();
+            mediaRecorder.release();
+            mediaRecorder = null;
+        }
     }
 
     private boolean hasAudioPermission() {
@@ -241,42 +240,15 @@ public class VoiceInputMethodService extends InputMethodService {
         startActivity(intent);
     }
 
-    private String firstResult(Bundle results) {
-        ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        if (matches == null || matches.isEmpty()) {
-            return "";
-        }
-        return matches.get(0);
-    }
-
     private void setStatus(String status) {
         if (statusText != null) {
             statusText.setText(status);
         }
     }
 
-    private String speechErrorName(int error) {
-        switch (error) {
-            case SpeechRecognizer.ERROR_AUDIO:
-                return "audio";
-            case SpeechRecognizer.ERROR_CLIENT:
-                return "client";
-            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-                return "permission";
-            case SpeechRecognizer.ERROR_NETWORK:
-                return "network";
-            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
-                return "timeout";
-            case SpeechRecognizer.ERROR_NO_MATCH:
-                return "no match";
-            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                return "busy";
-            case SpeechRecognizer.ERROR_SERVER:
-                return "server";
-            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                return "speech timeout";
-            default:
-                return String.valueOf(error);
+    private void deleteRecordingFile(File file) {
+        if (file != null && file.exists()) {
+            file.delete();
         }
     }
 }

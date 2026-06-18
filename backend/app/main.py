@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from app import storage
+from app.api.v1.correct_audio import router as correct_audio_router
 from app.api.v1.correct_text import router as correct_text_router
 from app.api.v1.debug import router as debug_router
 from app.api.v1.profile import router as profile_router
@@ -16,6 +17,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(correct_audio_router, prefix="/api/v1")
 app.include_router(correct_text_router, prefix="/api/v1")
 app.include_router(profile_router, prefix="/api/v1")
 app.include_router(terms_router, prefix="/api/v1")

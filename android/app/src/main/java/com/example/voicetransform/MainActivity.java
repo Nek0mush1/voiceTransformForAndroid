@@ -1,12 +1,12 @@
 package com.example.voicetransform;
 
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
-import android.speech.RecognizerIntent;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -22,14 +22,19 @@ import com.example.voicetransform.api.CorrectionApiClient;
 import com.example.voicetransform.model.TextCorrectionRequest;
 import com.example.voicetransform.model.TextCorrectionResponse;
 
-import java.util.ArrayList;
-import java.util.Locale;
+import java.io.File;
 
 public class MainActivity extends Activity {
-    private static final int REQUEST_SPEECH = 1001;
     private static final int REQUEST_RECORD_AUDIO_PERMISSION = 1002;
+    private static final long MAX_RECORDING_MS = 60000;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable recordingTimeoutRunnable = this::stopRecordingAndUpload;
 
     private boolean isChinese = true;
+    private boolean isRecording;
+    private MediaRecorder mediaRecorder;
+    private File recordingFile;
     private EditText backendUrlInput;
     private EditText userIdInput;
     private Spinner contextSpinner;
@@ -122,7 +127,7 @@ public class MainActivity extends Activity {
             isChinese = false;
             applyLanguage();
         });
-        voiceButton.setOnClickListener(view -> startSpeechInput());
+        voiceButton.setOnClickListener(view -> toggleVoiceRecording());
         correctButton.setOnClickListener(view -> submitCorrection());
         rawTextInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
     }
@@ -131,6 +136,12 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         saveCurrentSettings();
+    }
+
+    @Override
+    protected void onDestroy() {
+        cancelRecording();
+        super.onDestroy();
     }
 
     private void requestRecordAudioPermissionIfNeeded() {
@@ -151,7 +162,9 @@ public class MainActivity extends Activity {
         contextLabel.setText(isChinese ? "\u5e94\u7528\u573a\u666f" : "App Context");
         rawTextLabel.setText(isChinese ? "\u539f\u59cb\u6587\u672c" : "Raw Text");
         rawTextInput.setHint(isChinese ? "\u8f93\u5165\u8bed\u97f3\u8bc6\u522b\u540e\u7684\u6587\u672c" : "Enter recognized speech text");
-        voiceButton.setText(isChinese ? "\u8bed\u97f3\u8f93\u5165" : "Voice Input");
+        voiceButton.setText(isRecording
+                ? (isChinese ? "\u505c\u6b62\u5f55\u97f3" : "Stop Recording")
+                : (isChinese ? "\u8bed\u97f3\u8f93\u5165" : "Voice Input"));
         correctButton.setText(isChinese ? "\u5f00\u59cb\u7ea0\u9519" : "Correct");
         correctedTextLabel.setText(isChinese ? "\u7ea0\u9519\u7ed3\u679c" : "Corrected Text");
         matchedTermsLabel.setText(isChinese ? "\u547d\u4e2d\u672f\u8bed" : "Matched Terms");
@@ -173,17 +186,124 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startSpeechInput() {
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, isChinese ? Locale.CHINA.toLanguageTag() : Locale.US.toLanguageTag());
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, isChinese ? "\u8bf7\u5f00\u59cb\u8bf4\u8bdd" : "Start speaking");
-
-        try {
-            startActivityForResult(intent, REQUEST_SPEECH);
-        } catch (ActivityNotFoundException exception) {
-            Toast.makeText(this, isChinese ? "\u5f53\u524d\u8bbe\u5907\u6ca1\u6709\u53ef\u7528\u7684\u8bed\u97f3\u8bc6\u522b\u670d\u52a1" : "No speech recognition service available", Toast.LENGTH_LONG).show();
+    private void toggleVoiceRecording() {
+        if (isRecording) {
+            stopRecordingAndUpload();
+            return;
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO_PERMISSION);
+            return;
+        }
+        saveCurrentSettings();
+        startRecording();
+    }
+
+    private void startRecording() {
+        try {
+            recordingFile = new File(getCacheDir(), "voice_input_" + System.currentTimeMillis() + ".m4a");
+            mediaRecorder = createRecorder(recordingFile);
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+            isRecording = true;
+            voiceButton.setText(isChinese ? "\u505c\u6b62\u5f55\u97f3" : "Stop Recording");
+            reasonValue.setText(isChinese ? "\u5f55\u97f3\u4e2d\uff0c\u518d\u70b9\u4e00\u6b21\u505c\u6b62\u5e76\u4e0a\u4f20" : "Recording. Tap again to stop and upload.");
+            mainHandler.postDelayed(recordingTimeoutRunnable, MAX_RECORDING_MS);
+        } catch (Exception exception) {
+            cancelRecording();
+            Toast.makeText(this, isChinese ? "\u5f55\u97f3\u5931\u8d25" : "Recording failed", Toast.LENGTH_LONG).show();
+            reasonValue.setText((isChinese ? "\u5f55\u97f3\u5931\u8d25\uff1a" : "Recording failed: ") + exception.getClass().getSimpleName());
+        }
+    }
+
+    private MediaRecorder createRecorder(File outputFile) {
+        MediaRecorder recorder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? new MediaRecorder(this)
+                : new MediaRecorder();
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        recorder.setAudioSamplingRate(16000);
+        recorder.setAudioChannels(1);
+        recorder.setAudioEncodingBitRate(64000);
+        recorder.setOutputFile(outputFile.getAbsolutePath());
+        return recorder;
+    }
+
+    private void stopRecordingAndUpload() {
+        if (!isRecording) {
+            return;
+        }
+        File audioFile = recordingFile;
+        try {
+            mediaRecorder.stop();
+        } catch (RuntimeException exception) {
+            cancelRecording();
+            reasonValue.setText(isChinese ? "\u5f55\u97f3\u592a\u77ed\uff0c\u8bf7\u91cd\u8bd5" : "Recording too short. Try again.");
+            return;
+        } finally {
+            releaseRecorder();
+        }
+
+        isRecording = false;
+        mainHandler.removeCallbacks(recordingTimeoutRunnable);
+        voiceButton.setText(isChinese ? "\u8bed\u97f3\u8f93\u5165" : "Voice Input");
+        if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
+            reasonValue.setText(isChinese ? "\u6ca1\u6709\u5f55\u5230\u97f3\u9891" : "No audio recorded");
+            return;
+        }
+        uploadAudioForCorrection(audioFile);
+    }
+
+    private void uploadAudioForCorrection(File audioFile) {
+        String userId = userIdInput.getText().toString().trim();
+        String backendUrl = backendUrlInput.getText().toString().trim();
+        String context = contextSpinner.getSelectedItem().toString();
+
+        if (TextUtils.isEmpty(backendUrl)) {
+            backendUrlInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u540e\u7aef\u5730\u5740" : "Backend URL is required");
+            deleteRecordingFile(audioFile);
+            return;
+        }
+        if (TextUtils.isEmpty(userId)) {
+            userIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7528\u6237 ID" : "User ID is required");
+            deleteRecordingFile(audioFile);
+            return;
+        }
+
+        setLoading(true);
+        reasonValue.setText(isChinese ? "\u4e0a\u4f20\u97f3\u9891\u5e76\u8bc6\u522b\u4e2d..." : "Uploading audio and recognizing...");
+        CorrectionApiClient apiClient = new CorrectionApiClient(backendUrl);
+        apiClient.correctAudio(audioFile, userId, context, new CorrectionApiClient.Callback() {
+            @Override
+            public void onSuccess(TextCorrectionResponse response) {
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    rawTextInput.setText(response.rawText);
+                    rawTextInput.setSelection(rawTextInput.length());
+                    correctedTextValue.setText(response.correctedText);
+                    matchedTermsValue.setText(response.matchedTerms.isEmpty()
+                            ? "-"
+                            : TextUtils.join(", ", response.matchedTerms));
+                    reasonValue.setText(response.reason);
+                    deleteRecordingFile(audioFile);
+                });
+            }
+
+            @Override
+            public void onError(Exception exception) {
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    String message = isChinese
+                            ? "\u97f3\u9891\u8bf7\u6c42\u5931\u8d25\uff1a" + exception.getClass().getSimpleName() + "\n" + backendUrl
+                            : "Audio request failed: " + exception.getClass().getSimpleName() + "\n" + backendUrl;
+                    reasonValue.setText(message);
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                    deleteRecordingFile(audioFile);
+                });
+            }
+        });
     }
 
     private void submitCorrection() {
@@ -242,6 +362,36 @@ public class MainActivity extends Activity {
         voiceButton.setEnabled(!isLoading);
     }
 
+    private void cancelRecording() {
+        mainHandler.removeCallbacks(recordingTimeoutRunnable);
+        if (mediaRecorder != null) {
+            try {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                }
+            } catch (RuntimeException ignored) {
+            }
+            releaseRecorder();
+        }
+        isRecording = false;
+        deleteRecordingFile(recordingFile);
+        recordingFile = null;
+    }
+
+    private void releaseRecorder() {
+        if (mediaRecorder != null) {
+            mediaRecorder.reset();
+            mediaRecorder.release();
+            mediaRecorder = null;
+        }
+    }
+
+    private void deleteRecordingFile(File file) {
+        if (file != null && file.exists()) {
+            file.delete();
+        }
+    }
+
     private void saveCurrentSettings() {
         String context = contextSpinner.getSelectedItem() == null
                 ? AppSettings.DEFAULT_APP_CONTEXT
@@ -254,15 +404,4 @@ public class MainActivity extends Activity {
         );
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_SPEECH && resultCode == RESULT_OK && data != null) {
-            ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-            if (results != null && !results.isEmpty()) {
-                rawTextInput.setText(results.get(0));
-                rawTextInput.setSelection(rawTextInput.length());
-            }
-        }
-    }
 }
