@@ -25,7 +25,6 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SPEECH = 1001;
-    private static final String DEFAULT_BASE_URL = "http://192.168.1.4:8000";
 
     private boolean isChinese = true;
     private EditText backendUrlInput;
@@ -118,7 +117,7 @@ public class MainActivity extends Activity {
                 : "Type or dictate text, then call the backend correction API.");
         userIdLabel.setText(isChinese ? "\u7528\u6237 ID" : "User ID");
         backendUrlLabel.setText(isChinese ? "\u540e\u7aef\u5730\u5740" : "Backend URL");
-        backendUrlInput.setHint(isChinese ? "\u4f8b\u5982 http://192.168.1.4:8000" : "Example: http://192.168.1.4:8000");
+        backendUrlInput.setHint(isChinese ? "\u4f8b\u5982 http://10.0.2.2:8000" : "Example: http://10.0.2.2:8000");
         contextLabel.setText(isChinese ? "\u5e94\u7528\u573a\u666f" : "App Context");
         rawTextLabel.setText(isChinese ? "\u539f\u59cb\u6587\u672c" : "Raw Text");
         rawTextInput.setHint(isChinese ? "\u8f93\u5165\u8bed\u97f3\u8bc6\u522b\u540e\u7684\u6587\u672c" : "Enter recognized speech text");

@@ -1,8 +1,10 @@
 # voiceTransformForAndroid
 
-Step 1 MVP: FastAPI backend with a bilingual web demo for context-aware text correction.
+Context-aware speech text correction MVP.
 
-Step 2 MVP: Native Android client that accepts typed or speech-recognized text, calls the backend correction API, and displays the corrected result.
+- Step 1: FastAPI backend with a bilingual web demo.
+- Step 2: Native Android client with typed input, system speech recognition, and backend correction.
+- Step 3: Local end-to-end verification for backend, web demo, and Android emulator.
 
 ## Run Backend
 
@@ -12,7 +14,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-On Windows PowerShell, you can also run:
+On Windows PowerShell, you can also run from the repository root:
 
 ```powershell
 .\backend\start_server.ps1
@@ -67,10 +69,6 @@ If your local PowerShell execution policy blocks `.ps1` files, run:
 powershell -ExecutionPolicy Bypass -File .\backend\test_correct_text.ps1
 ```
 
-## Frontend Requirement
-
-Any custom web frontend must include a Chinese / English language toggle. The toggle should visibly switch active state and update page labels, buttons, hints, and result text immediately.
-
 ## Android Client
 
 Open the `android/` folder in Android Studio after the backend is running.
@@ -78,9 +76,18 @@ Open the `android/` folder in Android Studio after the backend is running.
 Main capabilities:
 
 - Chinese / English UI toggle
-- User ID, app context, and raw text input
+- User ID, app context, backend URL, and raw text input
 - Android system speech recognition entry point
 - Backend request to `POST /api/v1/correct-text`
 - Result display for corrected text, matched terms, and reason
 
-The emulator uses `http://10.0.2.2:8000` to access the backend running on the development machine. See `android/README.md` for Android-specific usage and the technology stack.
+The emulator uses `http://10.0.2.2:8000` to access the backend running on the development machine. For a physical Android device, enter the computer LAN address in the app, such as `http://192.168.1.4:8000`.
+
+See `android/README.md` for Android-specific usage and the technology stack.
+
+## Step 3 Verification Checklist
+
+1. Start the backend and confirm `http://127.0.0.1:8000/health` returns `{"status":"ok"}`.
+2. Run `.\backend\test_correct_text.ps1` and confirm `祭祖课` is corrected to `计组课`.
+3. Open the web demo, switch Chinese / English, and click Correct.
+4. Run the Android app on an emulator, keep backend URL as `http://10.0.2.2:8000`, and tap Correct.

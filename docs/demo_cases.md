@@ -68,3 +68,10 @@ curl -X POST "http://127.0.0.1:8000/api/v1/correct-text" \
   -H "Content-Type: application/json" \
   -d "{\"user_id\":\"local_user\",\"raw_text\":\"今天上午上了两节祭祖课\",\"app_context\":\"chat\"}"
 ```
+
+## Step 3 端到端验证
+
+1. 启动后端。
+2. 运行 `.\backend\test_correct_text.ps1` 验证 API 输出。
+3. 打开网页演示并点击 `开始纠错`。
+4. 在 Android 模拟器运行应用，保持后端地址为 `http://10.0.2.2:8000`，点击 `开始纠错`。

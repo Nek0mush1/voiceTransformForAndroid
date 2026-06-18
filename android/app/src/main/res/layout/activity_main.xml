@@ -70,7 +70,7 @@
             style="@style/FormInput"
             android:inputType="textUri"
             android:singleLine="true"
-            android:text="http://192.168.1.4:8000" />
+            android:text="@string/backend_default_url" />
 
         <TextView
             android:id="@+id/userIdLabel"
