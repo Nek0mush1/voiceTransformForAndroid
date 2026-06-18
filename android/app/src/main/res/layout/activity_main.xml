@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/screen_background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/titleText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/subtitleText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/language_switch_background"
+                android:orientation="horizontal"
+                android:padding="3dp">
+
+                <Button
+                    android:id="@+id/chineseButton"
+                    style="@style/LanguageButton"
+                    android:text="@string/lang_zh" />
+
+                <Button
+                    android:id="@+id/englishButton"
+                    style="@style/LanguageButton"
+                    android:text="@string/lang_en" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/backendUrlLabel"
+            style="@style/FormLabel"
+            android:layout_marginTop="24dp" />
+
+        <EditText
+            android:id="@+id/backendUrlInput"
+            style="@style/FormInput"
+            android:inputType="textUri"
+            android:singleLine="true"
+            android:text="http://192.168.1.4:8000" />
+
+        <TextView
+            android:id="@+id/userIdLabel"
+            style="@style/FormLabel"
+            android:layout_marginTop="14dp" />
+
+        <EditText
+            android:id="@+id/userIdInput"
+            style="@style/FormInput"
+            android:inputType="text"
+            android:singleLine="true"
+            android:text="local_user" />
+
+        <TextView
+            android:id="@+id/contextLabel"
+            style="@style/FormLabel" />
+
+        <Spinner
+            android:id="@+id/contextSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/input_background"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp" />
+
+        <TextView
+            android:id="@+id/rawTextLabel"
+            style="@style/FormLabel" />
+
+        <EditText
+            android:id="@+id/rawTextInput"
+            style="@style/FormInput"
+            android:gravity="top|start"
+            android:inputType="textMultiLine"
+            android:minLines="4"
+            android:text="@string/demo_raw_text" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/voiceButton"
+                style="@style/SecondaryButton"
+                android:layout_width="0dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/correctButton"
+                style="@style/PrimaryButton"
+                android:layout_width="0dp"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/result_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/correctedTextLabel"
+                style="@style/ResultLabel" />
+
+            <TextView
+                android:id="@+id/correctedTextValue"
+                style="@style/ResultValue" />
+
+            <TextView
+                android:id="@+id/matchedTermsLabel"
+                style="@style/ResultLabel"
+                android:layout_marginTop="14dp" />
+
+            <TextView
+                android:id="@+id/matchedTermsValue"
+                style="@style/ResultValue" />
+
+            <TextView
+                android:id="@+id/reasonLabel"
+                style="@style/ResultLabel"
+                android:layout_marginTop="14dp" />
+
+            <TextView
+                android:id="@+id/reasonValue"
+                style="@style/ResultValue" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/endpointHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="screen_background">#F5F7FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_alt">#EEF2F6</color>
+    <color name="border">#D5DCE5</color>
+    <color name="primary">#1668E3</color>
+    <color name="primary_pressed">#0F56C1</color>
+    <color name="secondary">#E8EEF7</color>
+    <color name="text_primary">#162033</color>
+    <color name="text_secondary">#536173</color>
+    <color name="text_muted">#748093</color>
+    <color name="text_inverse">#FFFFFF</color>
+</resources>

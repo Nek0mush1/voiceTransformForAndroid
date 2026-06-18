@@ -2,6 +2,8 @@
 
 Step 1 MVP: FastAPI backend with a bilingual web demo for context-aware text correction.
 
+Step 2 MVP: Native Android client that accepts typed or speech-recognized text, calls the backend correction API, and displays the corrected result.
+
 ## Run Backend
 
 ```bash
@@ -68,3 +70,17 @@ powershell -ExecutionPolicy Bypass -File .\backend\test_correct_text.ps1
 ## Frontend Requirement
 
 Any custom web frontend must include a Chinese / English language toggle. The toggle should visibly switch active state and update page labels, buttons, hints, and result text immediately.
+
+## Android Client
+
+Open the `android/` folder in Android Studio after the backend is running.
+
+Main capabilities:
+
+- Chinese / English UI toggle
+- User ID, app context, and raw text input
+- Android system speech recognition entry point
+- Backend request to `POST /api/v1/correct-text`
+- Result display for corrected text, matched terms, and reason
+
+The emulator uses `http://10.0.2.2:8000` to access the backend running on the development machine. See `android/README.md` for Android-specific usage and the technology stack.

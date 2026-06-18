@@ -1,0 +1,16 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.example.voicetransform"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.example.voicetransform"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "0.2.0"
+    }
+}

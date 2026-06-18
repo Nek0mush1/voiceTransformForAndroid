@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice Transform</string>
+    <string name="lang_zh">&#x4E2D;&#x6587;</string>
+    <string name="lang_en">EN</string>
+    <string name="demo_raw_text">&#x4ECA;&#x5929;&#x4E0A;&#x5348;&#x4E0A;&#x4E86;&#x4E24;&#x8282;&#x796D;&#x7956;&#x8BFE;</string>
+    <string-array name="context_values">
+        <item>chat</item>
+        <item>note</item>
+        <item>study</item>
+    </string-array>
+</resources>
