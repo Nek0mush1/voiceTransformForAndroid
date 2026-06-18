@@ -59,6 +59,12 @@ Or run the PowerShell test script after the backend is started:
 .\backend\test_correct_text.ps1
 ```
 
+If your local PowerShell execution policy blocks `.ps1` files, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\backend\test_correct_text.ps1
+```
+
 ## Frontend Requirement
 
 Any custom web frontend must include a Chinese / English language toggle. The toggle should visibly switch active state and update page labels, buttons, hints, and result text immediately.
