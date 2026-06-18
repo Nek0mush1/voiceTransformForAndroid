@@ -3,19 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Text Correction Demo</title>
+    <title>Voice Correction Agent Console</title>
     <style>
       :root {
         color-scheme: light;
-        --bg: #f5f7fa;
+        --bg: #f4f6f8;
         --panel: #ffffff;
         --text: #17202a;
-        --muted: #64748b;
+        --muted: #637083;
         --line: #d8dee8;
         --primary: #1769aa;
         --primary-dark: #0f4c81;
         --accent: #108060;
         --danger: #b42318;
+        --soft: #eef5fb;
       }
 
       * {
@@ -31,24 +32,23 @@
       }
 
       .page {
-        width: min(1040px, calc(100% - 32px));
+        width: min(1180px, calc(100% - 32px));
         margin: 0 auto;
-        padding: 32px 0 40px;
+        padding: 28px 0 40px;
       }
 
       header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        gap: 24px;
-        margin-bottom: 24px;
+        gap: 20px;
+        margin-bottom: 18px;
       }
 
       h1 {
-        margin: 0 0 8px;
-        font-size: 32px;
+        margin: 0 0 6px;
+        font-size: 30px;
         line-height: 1.2;
-        font-weight: 700;
         letter-spacing: 0;
       }
 
@@ -59,9 +59,9 @@
         line-height: 1.6;
       }
 
-      .language-toggle {
+      .language-toggle,
+      .tabs {
         display: inline-flex;
-        flex-shrink: 0;
         gap: 4px;
         padding: 4px;
         border: 1px solid var(--line);
@@ -69,8 +69,8 @@
         background: var(--panel);
       }
 
-      .language-toggle button {
-        min-width: 84px;
+      .language-toggle button,
+      .tabs button {
         border: 0;
         border-radius: 6px;
         padding: 9px 12px;
@@ -81,16 +81,27 @@
         cursor: pointer;
       }
 
-      .language-toggle button.active {
+      .language-toggle button {
+        min-width: 76px;
+      }
+
+      .language-toggle button.active,
+      .tabs button.active {
         background: var(--primary);
         color: #ffffff;
         font-weight: 600;
       }
 
-      main {
+      .tabs {
+        margin-bottom: 18px;
+        overflow-x: auto;
+        max-width: 100%;
+      }
+
+      .workspace {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
-        gap: 20px;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+        gap: 18px;
         align-items: start;
       }
 
@@ -101,7 +112,7 @@
       }
 
       .panel-header {
-        padding: 18px 20px;
+        padding: 16px 18px;
         border-bottom: 1px solid var(--line);
       }
 
@@ -112,12 +123,20 @@
       }
 
       .panel-body {
-        padding: 20px;
+        padding: 18px;
+      }
+
+      .section {
+        display: none;
+      }
+
+      .section.active {
+        display: block;
       }
 
       label {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 7px;
         font-size: 14px;
         font-weight: 600;
       }
@@ -135,7 +154,7 @@
       }
 
       textarea {
-        min-height: 164px;
+        min-height: 150px;
         resize: vertical;
         padding: 12px 14px;
         line-height: 1.6;
@@ -151,20 +170,21 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 14px;
-        margin-top: 16px;
+        margin-top: 14px;
       }
 
       .actions {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-top: 18px;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
       }
 
-      .primary-action {
+      .button {
         border: 0;
         border-radius: 8px;
-        padding: 11px 18px;
+        padding: 10px 15px;
         background: var(--primary);
         color: #ffffff;
         font: inherit;
@@ -172,11 +192,25 @@
         cursor: pointer;
       }
 
-      .primary-action:hover {
+      .button:hover {
         background: var(--primary-dark);
       }
 
-      .primary-action:disabled {
+      .button.secondary {
+        border: 1px solid var(--line);
+        background: #ffffff;
+        color: var(--text);
+      }
+
+      .button.secondary:hover {
+        background: var(--soft);
+      }
+
+      .button.danger {
+        background: var(--danger);
+      }
+
+      .button:disabled {
         cursor: not-allowed;
         opacity: 0.65;
       }
@@ -213,7 +247,7 @@
 
       .result-value {
         min-height: 24px;
-        font-size: 16px;
+        font-size: 15px;
         line-height: 1.5;
         word-break: break-word;
       }
@@ -232,13 +266,59 @@
       .term {
         display: inline-flex;
         align-items: center;
+        gap: 6px;
         min-height: 28px;
         border-radius: 8px;
-        padding: 4px 9px;
+        padding: 4px 8px;
         background: #e9f6f1;
         color: #0d6b50;
         font-size: 14px;
         font-weight: 600;
+      }
+
+      .term button {
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        line-height: 1;
+      }
+
+      .term-meta {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 400;
+      }
+
+      .trace-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .trace-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #ffffff;
+      }
+
+      .trace-card h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+
+      pre {
+        overflow: auto;
+        max-height: 320px;
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #f8fafc;
+        font-size: 12px;
+        line-height: 1.5;
       }
 
       .api-link {
@@ -250,9 +330,9 @@
         text-decoration: underline;
       }
 
-      @media (max-width: 760px) {
+      @media (max-width: 820px) {
         .page {
-          width: min(100% - 24px, 1040px);
+          width: min(100% - 24px, 1180px);
           padding-top: 20px;
         }
 
@@ -261,10 +341,10 @@
         }
 
         h1 {
-          font-size: 26px;
+          font-size: 25px;
         }
 
-        main {
+        .workspace {
           grid-template-columns: 1fr;
         }
 
@@ -287,9 +367,9 @@
     <div class="page">
       <header>
         <div>
-          <h1 data-i18n="title">文本纠错演示</h1>
+          <h1 data-i18n="title">语音纠错 Agent 控制台</h1>
           <p class="subtitle" data-i18n="subtitle">
-            输入语音识别后的文本，后端会根据专业词库修正常见误识别。
+            管理用户画像和专业词库，测试拼音纠错、LLM fallback 与 Agent trace。
           </p>
         </div>
         <div class="language-toggle" aria-label="Language">
@@ -298,75 +378,198 @@
         </div>
       </header>
 
-      <main>
-        <section class="panel" aria-labelledby="inputTitle">
-          <div class="panel-header">
-            <h2 id="inputTitle" data-i18n="inputTitle">输入</h2>
-          </div>
-          <div class="panel-body">
-            <label for="rawText" data-i18n="rawText">原始文本</label>
-            <textarea id="rawText">今天上午上了两节祭祖课</textarea>
+      <nav class="tabs" aria-label="Console sections">
+        <button type="button" class="active" data-tab="correct" data-i18n="tabCorrect">纠错</button>
+        <button type="button" data-tab="profile" data-i18n="tabProfile">用户画像</button>
+        <button type="button" data-tab="terms" data-i18n="tabTerms">专业词库</button>
+        <button type="button" data-tab="trace" data-i18n="tabTrace">Agent Trace</button>
+      </nav>
 
-            <div class="fields">
-              <div>
-                <label for="userId" data-i18n="userId">用户 ID</label>
-                <input id="userId" value="local_user" />
-              </div>
-              <div>
-                <label for="appContext" data-i18n="appContext">应用场景</label>
-                <select id="appContext">
-                  <option value="chat" data-i18n="contextChat">聊天</option>
-                  <option value="note" data-i18n="contextNote">笔记</option>
-                  <option value="study" data-i18n="contextStudy">学习</option>
-                </select>
-              </div>
+      <section id="sectionCorrect" class="section active">
+        <div class="workspace">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="correctInputTitle">输入文本</h2>
             </div>
+            <div class="panel-body">
+              <label for="rawText" data-i18n="rawText">原始文本</label>
+              <textarea id="rawText">今天上午上了两节祭祖课</textarea>
 
-            <div class="actions">
-              <button type="button" class="primary-action" id="correctButton" data-i18n="correctButton">
-                开始纠错
-              </button>
-              <span class="status" id="statusText" data-i18n="ready">准备就绪</span>
-            </div>
-          </div>
-        </section>
+              <div class="fields">
+                <div>
+                  <label for="userId" data-i18n="userId">用户 ID</label>
+                  <input id="userId" value="local_user" />
+                </div>
+                <div>
+                  <label for="appContext" data-i18n="appContext">应用场景</label>
+                  <select id="appContext">
+                    <option value="chat" data-i18n="contextChat">聊天</option>
+                    <option value="note" data-i18n="contextNote">笔记</option>
+                    <option value="study" data-i18n="contextStudy">学习</option>
+                  </select>
+                </div>
+              </div>
 
-        <section class="panel" aria-labelledby="resultTitle">
-          <div class="panel-header">
-            <h2 id="resultTitle" data-i18n="resultTitle">结果</h2>
-          </div>
-          <div class="panel-body result-block">
-            <div class="result-item">
-              <div class="result-label" data-i18n="correctedText">纠错结果</div>
-              <div class="result-value corrected" id="correctedText">今天上午上了两节计组课</div>
-            </div>
-            <div class="result-item">
-              <div class="result-label" data-i18n="matchedTerms">命中术语</div>
-              <div class="result-value terms" id="matchedTerms">
-                <span class="term">计组</span>
-              </div>
-            </div>
-            <div class="result-item">
-              <div class="result-label" data-i18n="reason">原因</div>
-              <div class="result-value" id="reasonText">根据用户专业词库和同音匹配修正。</div>
-            </div>
-            <div class="result-item">
-              <div class="result-label" data-i18n="apiDocs">接口文档</div>
-              <div class="result-value">
-                <a class="api-link" href="/docs" data-i18n="openDocs">打开 FastAPI 文档</a>
+              <div class="actions">
+                <button type="button" class="button" id="correctButton" data-i18n="correctButton">开始纠错</button>
+                <button type="button" class="button secondary" id="loadContextButton" data-i18n="loadContextButton">
+                  加载画像和词库
+                </button>
+                <span class="status" id="statusText" data-i18n="ready">准备就绪</span>
               </div>
             </div>
           </div>
-        </section>
-      </main>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="resultTitle">结果</h2>
+            </div>
+            <div class="panel-body result-block">
+              <div class="result-item">
+                <div class="result-label" data-i18n="correctedText">纠错结果</div>
+                <div class="result-value corrected" id="correctedText">等待纠错结果</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label" data-i18n="matchedTerms">命中术语</div>
+                <div class="result-value terms" id="matchedTerms">-</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label" data-i18n="reason">原因</div>
+                <div class="result-value" id="reasonText">-</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Trace ID</div>
+                <div class="result-value" id="traceIdText">-</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label" data-i18n="apiDocs">接口文档</div>
+                <div class="result-value">
+                  <a class="api-link" href="/docs" data-i18n="openDocs">打开 FastAPI 文档</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="sectionProfile" class="section">
+        <div class="workspace">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="profileTitle">编辑用户画像</h2>
+            </div>
+            <div class="panel-body">
+              <label for="profileUserId" data-i18n="userId">用户 ID</label>
+              <input id="profileUserId" value="local_user" />
+
+              <label for="profileText" data-i18n="profileText" style="margin-top: 14px">画像内容</label>
+              <textarea id="profileText"></textarea>
+
+              <div class="actions">
+                <button type="button" class="button secondary" id="loadProfileButton" data-i18n="loadProfile">加载画像</button>
+                <button type="button" class="button" id="saveProfileButton" data-i18n="saveProfile">保存画像</button>
+                <span class="status" id="profileStatus" data-i18n="ready">准备就绪</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="profilePreviewTitle">当前画像</h2>
+            </div>
+            <div class="panel-body">
+              <pre id="profilePreview">-</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="sectionTerms" class="section">
+        <div class="workspace">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="termFormTitle">新增或更新术语</h2>
+            </div>
+            <div class="panel-body">
+              <div class="fields">
+                <div>
+                  <label for="termUserId" data-i18n="userId">用户 ID</label>
+                  <input id="termUserId" value="local_user" />
+                </div>
+                <div>
+                  <label for="termCategory" data-i18n="termCategory">分类</label>
+                  <input id="termCategory" value="course" />
+                </div>
+              </div>
+              <div class="fields">
+                <div>
+                  <label for="termText" data-i18n="termText">术语</label>
+                  <input id="termText" value="线程" />
+                </div>
+                <div>
+                  <label for="termWeight" data-i18n="termWeight">权重</label>
+                  <input id="termWeight" type="number" min="0" max="10" step="0.1" value="1.0" />
+                </div>
+              </div>
+              <label for="termAliases" data-i18n="termAliases" style="margin-top: 14px">别名，逗号分隔</label>
+              <input id="termAliases" value="现金" />
+
+              <div class="actions">
+                <button type="button" class="button" id="saveTermButton" data-i18n="saveTerm">保存术语</button>
+                <button type="button" class="button secondary" id="loadTermsButton" data-i18n="loadTerms">刷新词库</button>
+                <span class="status" id="termsStatus" data-i18n="ready">准备就绪</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="termListTitle">当前词库</h2>
+            </div>
+            <div class="panel-body">
+              <div class="terms" id="termList">-</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="sectionTrace" class="section">
+        <div class="workspace">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="traceTitle">最近 Trace</h2>
+            </div>
+            <div class="panel-body">
+              <div class="actions" style="margin-top: 0">
+                <button type="button" class="button" id="loadTraceButton" data-i18n="loadTrace">刷新 Trace</button>
+                <span class="status" id="traceStatus" data-i18n="ready">准备就绪</span>
+              </div>
+              <div class="trace-list" id="traceList" style="margin-top: 14px">-</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2 data-i18n="traceRawTitle">Trace JSON</h2>
+            </div>
+            <div class="panel-body">
+              <pre id="traceJson">-</pre>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <script>
       const translations = {
         zh: {
-          title: "文本纠错演示",
-          subtitle: "输入语音识别后的文本，后端会根据专业词库修正常见误识别。",
-          inputTitle: "输入",
+          title: "语音纠错 Agent 控制台",
+          subtitle: "管理用户画像和专业词库，测试拼音纠错、LLM fallback 与 Agent trace。",
+          tabCorrect: "纠错",
+          tabProfile: "用户画像",
+          tabTerms: "专业词库",
+          tabTrace: "Agent Trace",
+          correctInputTitle: "输入文本",
           rawText: "原始文本",
           userId: "用户 ID",
           appContext: "应用场景",
@@ -374,7 +577,10 @@
           contextNote: "笔记",
           contextStudy: "学习",
           correctButton: "开始纠错",
+          loadContextButton: "加载画像和词库",
           ready: "准备就绪",
+          loading: "加载中...",
+          saving: "保存中...",
           correcting: "纠错中...",
           done: "已完成",
           failed: "请求失败，请确认后端服务正在运行。",
@@ -385,11 +591,32 @@
           emptyTerms: "无",
           apiDocs: "接口文档",
           openDocs: "打开 FastAPI 文档",
+          profileTitle: "编辑用户画像",
+          profileText: "画像内容",
+          loadProfile: "加载画像",
+          saveProfile: "保存画像",
+          profilePreviewTitle: "当前画像",
+          termFormTitle: "新增或更新术语",
+          termCategory: "分类",
+          termText: "术语",
+          termWeight: "权重",
+          termAliases: "别名，逗号分隔",
+          saveTerm: "保存术语",
+          loadTerms: "刷新词库",
+          termListTitle: "当前词库",
+          deleteTerm: "删除",
+          traceTitle: "最近 Trace",
+          loadTrace: "刷新 Trace",
+          traceRawTitle: "Trace JSON",
         },
         en: {
-          title: "Text Correction Demo",
-          subtitle: "Enter speech-recognized text and the backend will correct common domain-term mistakes.",
-          inputTitle: "Input",
+          title: "Voice Correction Agent Console",
+          subtitle: "Manage profile and terms, then test pinyin correction, LLM fallback, and agent traces.",
+          tabCorrect: "Correct",
+          tabProfile: "Profile",
+          tabTerms: "Terms",
+          tabTrace: "Agent Trace",
+          correctInputTitle: "Input Text",
           rawText: "Raw Text",
           userId: "User ID",
           appContext: "App Context",
@@ -397,7 +624,10 @@
           contextNote: "Notes",
           contextStudy: "Study",
           correctButton: "Correct",
+          loadContextButton: "Load Profile and Terms",
           ready: "Ready",
+          loading: "Loading...",
+          saving: "Saving...",
           correcting: "Correcting...",
           done: "Completed",
           failed: "Request failed. Make sure the backend service is running.",
@@ -408,26 +638,79 @@
           emptyTerms: "None",
           apiDocs: "API Docs",
           openDocs: "Open FastAPI Docs",
+          profileTitle: "Edit User Profile",
+          profileText: "Profile Text",
+          loadProfile: "Load Profile",
+          saveProfile: "Save Profile",
+          profilePreviewTitle: "Current Profile",
+          termFormTitle: "Add or Update Term",
+          termCategory: "Category",
+          termText: "Term",
+          termWeight: "Weight",
+          termAliases: "Aliases, comma separated",
+          saveTerm: "Save Term",
+          loadTerms: "Refresh Terms",
+          termListTitle: "Current Terms",
+          deleteTerm: "Delete",
+          traceTitle: "Recent Traces",
+          loadTrace: "Refresh Trace",
+          traceRawTitle: "Trace JSON",
         },
       };
 
       let currentLanguage = "zh";
+      let currentTerms = [];
+      let currentTraces = [];
 
+      const $ = (id) => document.getElementById(id);
       const elements = {
-        langZh: document.getElementById("langZh"),
-        langEn: document.getElementById("langEn"),
-        rawText: document.getElementById("rawText"),
-        userId: document.getElementById("userId"),
-        appContext: document.getElementById("appContext"),
-        correctButton: document.getElementById("correctButton"),
-        statusText: document.getElementById("statusText"),
-        correctedText: document.getElementById("correctedText"),
-        matchedTerms: document.getElementById("matchedTerms"),
-        reasonText: document.getElementById("reasonText"),
+        langZh: $("langZh"),
+        langEn: $("langEn"),
+        rawText: $("rawText"),
+        userId: $("userId"),
+        appContext: $("appContext"),
+        correctButton: $("correctButton"),
+        loadContextButton: $("loadContextButton"),
+        statusText: $("statusText"),
+        correctedText: $("correctedText"),
+        matchedTerms: $("matchedTerms"),
+        reasonText: $("reasonText"),
+        traceIdText: $("traceIdText"),
+        profileUserId: $("profileUserId"),
+        profileText: $("profileText"),
+        profileStatus: $("profileStatus"),
+        profilePreview: $("profilePreview"),
+        termUserId: $("termUserId"),
+        termCategory: $("termCategory"),
+        termText: $("termText"),
+        termWeight: $("termWeight"),
+        termAliases: $("termAliases"),
+        termsStatus: $("termsStatus"),
+        termList: $("termList"),
+        traceStatus: $("traceStatus"),
+        traceList: $("traceList"),
+        traceJson: $("traceJson"),
       };
 
       function t(key) {
-        return translations[currentLanguage][key];
+        return translations[currentLanguage][key] || key;
+      }
+
+      function setStatus(node, key, isError = false) {
+        node.textContent = t(key);
+        node.classList.toggle("error", isError);
+      }
+
+      async function requestJson(url, options = {}) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        if (response.status === 204) {
+          return null;
+        }
+        return response.json();
       }
 
       function setLanguage(language) {
@@ -437,77 +720,228 @@
         elements.langEn.classList.toggle("active", language === "en");
 
         document.querySelectorAll("[data-i18n]").forEach((node) => {
-          const key = node.getAttribute("data-i18n");
-          if (translations[language][key]) {
-            node.textContent = translations[language][key];
-          }
+          node.textContent = t(node.getAttribute("data-i18n"));
         });
 
-        if (!elements.statusText.classList.contains("error")) {
-          elements.statusText.textContent = t("ready");
-        }
-
-        if (elements.matchedTerms.dataset.empty === "true") {
-          renderTerms([]);
-        }
+        renderMatchedTerms(getMatchedTermsFromDom());
+        renderTermList();
+        renderTraceList();
       }
 
-      function renderTerms(terms) {
-        elements.matchedTerms.innerHTML = "";
-        elements.matchedTerms.dataset.empty = String(terms.length === 0);
+      function activateTab(name) {
+        document.querySelectorAll(".tabs button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.tab === name);
+        });
+        document.querySelectorAll(".section").forEach((section) => {
+          section.classList.toggle("active", section.id === `section${name[0].toUpperCase()}${name.slice(1)}`);
+        });
+      }
 
-        if (terms.length === 0) {
+      function getMatchedTermsFromDom() {
+        return [...elements.matchedTerms.querySelectorAll(".term")].map((node) => node.dataset.term || node.textContent);
+      }
+
+      function renderMatchedTerms(terms) {
+        elements.matchedTerms.innerHTML = "";
+        if (!terms || terms.length === 0) {
           elements.matchedTerms.textContent = t("emptyTerms");
           return;
         }
-
         terms.forEach((term) => {
           const span = document.createElement("span");
           span.className = "term";
+          span.dataset.term = term;
           span.textContent = term;
           elements.matchedTerms.appendChild(span);
         });
       }
 
       async function correctText() {
-        elements.statusText.classList.remove("error");
-        elements.statusText.textContent = t("correcting");
+        setStatus(elements.statusText, "correcting");
         elements.correctButton.disabled = true;
-
         try {
-          const response = await fetch("/api/v1/correct-text", {
+          const data = await requestJson("/api/v1/correct-text", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               user_id: elements.userId.value.trim() || "local_user",
               raw_text: elements.rawText.value.trim(),
               app_context: elements.appContext.value,
             }),
           });
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          const data = await response.json();
           elements.correctedText.textContent = data.corrected_text;
           elements.reasonText.textContent = data.reason;
-          renderTerms(data.matched_terms || []);
-          elements.statusText.textContent = t("done");
+          elements.traceIdText.textContent = data.trace_id || "-";
+          renderMatchedTerms(data.matched_terms || []);
+          setStatus(elements.statusText, "done");
+          await loadTraces();
         } catch (error) {
-          elements.statusText.textContent = t("failed");
-          elements.statusText.classList.add("error");
+          console.error(error);
+          setStatus(elements.statusText, "failed", true);
         } finally {
           elements.correctButton.disabled = false;
         }
       }
 
+      async function loadProfile() {
+        const userId = elements.profileUserId.value.trim() || elements.userId.value.trim() || "local_user";
+        elements.profileUserId.value = userId;
+        setStatus(elements.profileStatus, "loading");
+        try {
+          const data = await requestJson(`/api/v1/profile/${encodeURIComponent(userId)}`);
+          elements.profileText.value = data.profile_text;
+          elements.profilePreview.textContent = JSON.stringify(data, null, 2);
+          setStatus(elements.profileStatus, "done");
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.profileStatus, "failed", true);
+        }
+      }
+
+      async function saveProfile() {
+        const userId = elements.profileUserId.value.trim() || "local_user";
+        setStatus(elements.profileStatus, "saving");
+        try {
+          const data = await requestJson(`/api/v1/profile/${encodeURIComponent(userId)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profile_text: elements.profileText.value.trim() }),
+          });
+          elements.profilePreview.textContent = JSON.stringify(data, null, 2);
+          setStatus(elements.profileStatus, "done");
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.profileStatus, "failed", true);
+        }
+      }
+
+      async function loadTerms() {
+        const userId = elements.termUserId.value.trim() || elements.userId.value.trim() || "local_user";
+        elements.termUserId.value = userId;
+        setStatus(elements.termsStatus, "loading");
+        try {
+          currentTerms = await requestJson(`/api/v1/terms?user_id=${encodeURIComponent(userId)}`);
+          renderTermList();
+          setStatus(elements.termsStatus, "done");
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.termsStatus, "failed", true);
+        }
+      }
+
+      async function saveTerm() {
+        const aliases = elements.termAliases.value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        setStatus(elements.termsStatus, "saving");
+        try {
+          await requestJson("/api/v1/terms", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: elements.termUserId.value.trim() || "local_user",
+              term: elements.termText.value.trim(),
+              category: elements.termCategory.value.trim(),
+              aliases,
+              weight: Number(elements.termWeight.value || "1"),
+            }),
+          });
+          await loadTerms();
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.termsStatus, "failed", true);
+        }
+      }
+
+      async function deleteTerm(id) {
+        setStatus(elements.termsStatus, "saving");
+        try {
+          await requestJson(`/api/v1/terms/${id}`, { method: "DELETE" });
+          await loadTerms();
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.termsStatus, "failed", true);
+        }
+      }
+
+      function renderTermList() {
+        elements.termList.innerHTML = "";
+        if (!currentTerms.length) {
+          elements.termList.textContent = t("emptyTerms");
+          return;
+        }
+        currentTerms.forEach((record) => {
+          const item = document.createElement("span");
+          item.className = "term";
+          const aliases = record.aliases.length ? ` / ${record.aliases.join(", ")}` : "";
+          item.innerHTML = `<span>${record.term}<span class="term-meta">${aliases}</span></span>`;
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = "x";
+          button.title = t("deleteTerm");
+          button.addEventListener("click", () => deleteTerm(record.id));
+          item.appendChild(button);
+          elements.termList.appendChild(item);
+        });
+      }
+
+      async function loadTraces() {
+        setStatus(elements.traceStatus, "loading");
+        try {
+          currentTraces = await requestJson("/api/v1/debug/traces?limit=10");
+          renderTraceList();
+          elements.traceJson.textContent = JSON.stringify(currentTraces, null, 2);
+          setStatus(elements.traceStatus, "done");
+        } catch (error) {
+          console.error(error);
+          setStatus(elements.traceStatus, "failed", true);
+        }
+      }
+
+      function renderTraceList() {
+        elements.traceList.innerHTML = "";
+        if (!currentTraces.length) {
+          elements.traceList.textContent = "-";
+          return;
+        }
+        currentTraces.forEach((trace) => {
+          const card = document.createElement("div");
+          card.className = "trace-card";
+          const terms = trace.matched_terms && trace.matched_terms.length ? trace.matched_terms.join(", ") : "-";
+          card.innerHTML = `
+            <h3>${trace.corrected_text}</h3>
+            <div class="result-label">${trace.raw_text}</div>
+            <div class="result-value">Trace: ${trace.id}</div>
+            <div class="result-value">Terms: ${terms}</div>
+            <div class="result-value">LLM: ${trace.llm_success ? "ok" : "fallback"}</div>
+          `;
+          elements.traceList.appendChild(card);
+        });
+      }
+
+      async function loadContext() {
+        elements.profileUserId.value = elements.userId.value.trim() || "local_user";
+        elements.termUserId.value = elements.userId.value.trim() || "local_user";
+        await Promise.all([loadProfile(), loadTerms(), loadTraces()]);
+      }
+
+      document.querySelectorAll(".tabs button").forEach((button) => {
+        button.addEventListener("click", () => activateTab(button.dataset.tab));
+      });
       elements.langZh.addEventListener("click", () => setLanguage("zh"));
       elements.langEn.addEventListener("click", () => setLanguage("en"));
       elements.correctButton.addEventListener("click", correctText);
+      elements.loadContextButton.addEventListener("click", loadContext);
+      $("loadProfileButton").addEventListener("click", loadProfile);
+      $("saveProfileButton").addEventListener("click", saveProfile);
+      $("loadTermsButton").addEventListener("click", loadTerms);
+      $("saveTermButton").addEventListener("click", saveTerm);
+      $("loadTraceButton").addEventListener("click", loadTraces);
+
       setLanguage("zh");
+      loadContext();
     </script>
   </body>
 </html>

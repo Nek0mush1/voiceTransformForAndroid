@@ -1,6 +1,6 @@
 # 演示案例
 
-## 案例 1：专业课名称纠错
+## 案例 1：默认词库纠错
 
 请求：
 
@@ -12,66 +12,92 @@
 }
 ```
 
-响应：
+响应核心字段：
 
 ```json
 {
   "raw_text": "今天上午上了两节祭祖课",
   "corrected_text": "今天上午上了两节计组课",
   "matched_terms": ["计组"],
-  "reason": "根据用户专业词库和同音匹配修正。"
+  "reason": "根据用户专业词库和拼音候选修正；LLM 未配置或调用失败，已使用 fallback。"
 }
 ```
 
-说明：`祭祖课 -> 计组课` 是语音识别中的同音误识别，后端根据专业词库命中 `计组` 并修正。
+说明：`祭祖课 -> 计组课` 是同音误识别，`计组` 来自默认专业词库。
 
-## 本地运行
+## 案例 2：新增词库后参与纠错
 
-在 `backend/` 目录安装依赖并启动服务：
+新增术语：
 
-```bash
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
+```json
+{
+  "user_id": "local_user",
+  "term": "线程",
+  "category": "system",
+  "aliases": ["现金"],
+  "weight": 1.0
+}
 ```
 
-Windows PowerShell 也可以在项目根目录运行：
+之后请求：
+
+```json
+{
+  "user_id": "local_user",
+  "raw_text": "老师讲了现金调度",
+  "app_context": "study"
+}
+```
+
+响应核心字段：
+
+```json
+{
+  "corrected_text": "老师讲了线程调度",
+  "matched_terms": ["线程"]
+}
+```
+
+## 案例 3：LLM 未配置时 fallback
+
+如果没有设置：
+
+```text
+LLM_BASE_URL
+LLM_API_KEY
+LLM_MODEL
+```
+
+`POST /api/v1/correct-text` 仍然返回结果，`agent_trace.llm_success` 为 `false`，并使用 `PinyinCorrectorTool` 的修正文本。
+
+## 常用命令
+
+启动后端：
 
 ```powershell
 .\backend\start_server.ps1
 ```
 
-## 网页演示
+查看用户画像：
 
-打开：
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/profile/local_user
+```
+
+查看词库：
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/v1/terms?user_id=local_user"
+```
+
+查看 trace：
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/v1/debug/traces?limit=10"
+```
+
+网页演示：
 
 ```text
 http://127.0.0.1:8000/
 ```
-
-网页默认展示中文界面，点击 `English` 后会切换为英文界面；再次点击 `中文` 会切回中文。切换时按钮激活态和页面文案会立即变化。
-
-当前页面覆盖以下文案：
-
-| 中文 | English |
-| --- | --- |
-| 文本纠错演示 | Text Correction Demo |
-| 原始文本 | Raw Text |
-| 纠错结果 | Corrected Text |
-| 开始纠错 | Correct |
-| 命中术语 | Matched Terms |
-| 原因 | Reason |
-
-## 接口调用
-
-```bash
-curl -X POST "http://127.0.0.1:8000/api/v1/correct-text" \
-  -H "Content-Type: application/json" \
-  -d "{\"user_id\":\"local_user\",\"raw_text\":\"今天上午上了两节祭祖课\",\"app_context\":\"chat\"}"
-```
-
-## Step 3 端到端验证
-
-1. 启动后端。
-2. 运行 `.\backend\test_correct_text.ps1` 验证 API 输出。
-3. 打开网页演示并点击 `开始纠错`。
-4. 在 Android 模拟器运行应用，保持后端地址为 `http://10.0.2.2:8000`，点击 `开始纠错`。

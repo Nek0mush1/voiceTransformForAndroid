@@ -1,0 +1,339 @@
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_PROFILE = (
+    "计算机专业大二学生，正在学习计组、计网、操作系统、数据结构、Agent 开发。"
+)
+
+DEFAULT_TERMS = [
+    ("计组", "course", ["祭祖", "祭祖课", "计组课"], 1.0),
+    ("计网", "course", ["鸡王", "计网课"], 1.0),
+    ("操作系统", "course", ["炒作系统"], 1.0),
+    ("数据结构", "course", ["数据解构"], 1.0),
+    ("数据库", "course", ["书局库", "数据哭"], 1.0),
+    ("Agent", "ai", ["真特", "智能体"], 1.0),
+    ("RAG", "ai", ["拉格"], 1.0),
+    ("Cache", "system", ["cash", "快取"], 1.0),
+    ("Transformer", "ai", ["transformer"], 1.0),
+]
+
+
+def now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def database_path() -> Path:
+    configured = os.getenv("VOICE_TRANSFORM_DB")
+    if configured:
+        return Path(configured)
+    return Path(__file__).resolve().parents[1] / "data" / "voice_transform.db"
+
+
+def connect() -> sqlite3.Connection:
+    path = database_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def init_db() -> None:
+    with connect() as connection:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS profiles (
+                user_id TEXT PRIMARY KEY,
+                profile_text TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS terms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                term TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT '',
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                weight REAL NOT NULL DEFAULT 1.0,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, term)
+            );
+
+            CREATE TABLE IF NOT EXISTS traces (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                raw_text TEXT NOT NULL,
+                corrected_text TEXT NOT NULL,
+                profile_summary TEXT NOT NULL,
+                matched_terms_json TEXT NOT NULL,
+                pinyin_candidates_json TEXT NOT NULL,
+                llm_success INTEGER NOT NULL,
+                llm_error TEXT NOT NULL,
+                tools_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+        seed_defaults(connection)
+
+
+def seed_defaults(connection: sqlite3.Connection) -> None:
+    timestamp = now_iso()
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO profiles (user_id, profile_text, updated_at)
+        VALUES (?, ?, ?)
+        """,
+        ("local_user", DEFAULT_PROFILE, timestamp),
+    )
+    for term, category, aliases, weight in DEFAULT_TERMS:
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO terms
+            (user_id, term, category, aliases_json, weight, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("local_user", term, category, json.dumps(aliases, ensure_ascii=False), weight, timestamp),
+        )
+
+
+@dataclass(frozen=True)
+class ProfileRecord:
+    user_id: str
+    profile_text: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class TermRecord:
+    id: int
+    user_id: str
+    term: str
+    category: str
+    aliases: list[str]
+    weight: float
+    created_at: str
+
+
+@dataclass(frozen=True)
+class TraceRecord:
+    id: str
+    user_id: str
+    raw_text: str
+    corrected_text: str
+    profile_summary: str
+    matched_terms: list[str]
+    pinyin_candidates: list[dict[str, Any]]
+    llm_success: bool
+    llm_error: str
+    tools: list[dict[str, Any]]
+    created_at: str
+
+
+def row_to_profile(row: sqlite3.Row) -> ProfileRecord:
+    return ProfileRecord(
+        user_id=row["user_id"],
+        profile_text=row["profile_text"],
+        updated_at=row["updated_at"],
+    )
+
+
+def row_to_term(row: sqlite3.Row) -> TermRecord:
+    return TermRecord(
+        id=row["id"],
+        user_id=row["user_id"],
+        term=row["term"],
+        category=row["category"],
+        aliases=json.loads(row["aliases_json"]),
+        weight=row["weight"],
+        created_at=row["created_at"],
+    )
+
+
+def get_profile(user_id: str) -> ProfileRecord:
+    init_db()
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT user_id, profile_text, updated_at FROM profiles WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            timestamp = now_iso()
+            connection.execute(
+                """
+                INSERT INTO profiles (user_id, profile_text, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, DEFAULT_PROFILE, timestamp),
+            )
+            return ProfileRecord(user_id=user_id, profile_text=DEFAULT_PROFILE, updated_at=timestamp)
+        return row_to_profile(row)
+
+
+def update_profile(user_id: str, profile_text: str) -> ProfileRecord:
+    init_db()
+    timestamp = now_iso()
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO profiles (user_id, profile_text, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                profile_text = excluded.profile_text,
+                updated_at = excluded.updated_at
+            """,
+            (user_id, profile_text, timestamp),
+        )
+    return ProfileRecord(user_id=user_id, profile_text=profile_text, updated_at=timestamp)
+
+
+def list_terms(user_id: str | None = None) -> list[TermRecord]:
+    init_db()
+    with connect() as connection:
+        if user_id:
+            rows = connection.execute(
+                """
+                SELECT id, user_id, term, category, aliases_json, weight, created_at
+                FROM terms
+                WHERE user_id = ?
+                ORDER BY id
+                """,
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                """
+                SELECT id, user_id, term, category, aliases_json, weight, created_at
+                FROM terms
+                ORDER BY user_id, id
+                """
+            ).fetchall()
+        return [row_to_term(row) for row in rows]
+
+
+def create_term(
+    user_id: str,
+    term: str,
+    category: str = "",
+    aliases: list[str] | None = None,
+    weight: float = 1.0,
+) -> TermRecord:
+    init_db()
+    timestamp = now_iso()
+    aliases = aliases or []
+    aliases_json = json.dumps(aliases, ensure_ascii=False)
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO terms (user_id, term, category, aliases_json, weight, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, term) DO UPDATE SET
+                category = excluded.category,
+                aliases_json = excluded.aliases_json,
+                weight = excluded.weight
+            """,
+            (user_id, term, category, aliases_json, weight, timestamp),
+        )
+        row = connection.execute(
+            """
+            SELECT id, user_id, term, category, aliases_json, weight, created_at
+            FROM terms
+            WHERE user_id = ? AND term = ?
+            """,
+            (user_id, term),
+        ).fetchone()
+        return row_to_term(row)
+
+
+def delete_term(term_id: int) -> bool:
+    init_db()
+    with connect() as connection:
+        cursor = connection.execute("DELETE FROM terms WHERE id = ?", (term_id,))
+        return cursor.rowcount > 0
+
+
+def save_trace(
+    trace_id: str,
+    user_id: str,
+    raw_text: str,
+    corrected_text: str,
+    profile_summary: str,
+    matched_terms: list[str],
+    pinyin_candidates: list[dict[str, Any]],
+    llm_success: bool,
+    llm_error: str,
+    tools: list[dict[str, Any]],
+) -> None:
+    init_db()
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO traces
+            (
+                id,
+                user_id,
+                raw_text,
+                corrected_text,
+                profile_summary,
+                matched_terms_json,
+                pinyin_candidates_json,
+                llm_success,
+                llm_error,
+                tools_json,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trace_id,
+                user_id,
+                raw_text,
+                corrected_text,
+                profile_summary,
+                json.dumps(matched_terms, ensure_ascii=False),
+                json.dumps(pinyin_candidates, ensure_ascii=False),
+                1 if llm_success else 0,
+                llm_error,
+                json.dumps(tools, ensure_ascii=False),
+                now_iso(),
+            ),
+        )
+
+
+def list_traces(limit: int = 20) -> list[TraceRecord]:
+    init_db()
+    with connect() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, user_id, raw_text, corrected_text, profile_summary,
+                   matched_terms_json, pinyin_candidates_json, llm_success,
+                   llm_error, tools_json, created_at
+            FROM traces
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            TraceRecord(
+                id=row["id"],
+                user_id=row["user_id"],
+                raw_text=row["raw_text"],
+                corrected_text=row["corrected_text"],
+                profile_summary=row["profile_summary"],
+                matched_terms=json.loads(row["matched_terms_json"]),
+                pinyin_candidates=json.loads(row["pinyin_candidates_json"]),
+                llm_success=bool(row["llm_success"]),
+                llm_error=row["llm_error"],
+                tools=json.loads(row["tools_json"]),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]

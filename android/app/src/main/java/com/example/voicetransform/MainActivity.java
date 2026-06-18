@@ -3,6 +3,8 @@ package com.example.voicetransform;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
 import android.text.TextUtils;
@@ -25,6 +27,7 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SPEECH = 1001;
+    private static final int REQUEST_RECORD_AUDIO_PERMISSION = 1002;
 
     private boolean isChinese = true;
     private EditText backendUrlInput;
@@ -57,7 +60,9 @@ public class MainActivity extends Activity {
 
         bindViews();
         setupContextSpinner();
+        loadSavedSettings();
         setupActions();
+        requestRecordAudioPermissionIfNeeded();
         applyLanguage();
     }
 
@@ -96,6 +101,18 @@ public class MainActivity extends Activity {
         contextSpinner.setAdapter(adapter);
     }
 
+    private void loadSavedSettings() {
+        backendUrlInput.setText(AppSettings.getBackendUrl(this));
+        userIdInput.setText(AppSettings.getUserId(this));
+        String savedContext = AppSettings.getAppContext(this);
+        for (int i = 0; i < contextSpinner.getCount(); i++) {
+            if (savedContext.equals(contextSpinner.getItemAtPosition(i).toString())) {
+                contextSpinner.setSelection(i);
+                break;
+            }
+        }
+    }
+
     private void setupActions() {
         chineseButton.setOnClickListener(view -> {
             isChinese = true;
@@ -108,6 +125,19 @@ public class MainActivity extends Activity {
         voiceButton.setOnClickListener(view -> startSpeechInput());
         correctButton.setOnClickListener(view -> submitCorrection());
         rawTextInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentSettings();
+    }
+
+    private void requestRecordAudioPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO_PERMISSION);
+        }
     }
 
     private void applyLanguage() {
@@ -175,6 +205,7 @@ public class MainActivity extends Activity {
             return;
         }
 
+        saveCurrentSettings();
         setLoading(true);
         TextCorrectionRequest request = new TextCorrectionRequest(userId, rawText, context);
         CorrectionApiClient apiClient = new CorrectionApiClient(backendUrl);
@@ -209,6 +240,18 @@ public class MainActivity extends Activity {
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         correctButton.setEnabled(!isLoading);
         voiceButton.setEnabled(!isLoading);
+    }
+
+    private void saveCurrentSettings() {
+        String context = contextSpinner.getSelectedItem() == null
+                ? AppSettings.DEFAULT_APP_CONTEXT
+                : contextSpinner.getSelectedItem().toString();
+        AppSettings.save(
+                this,
+                backendUrlInput.getText().toString(),
+                userIdInput.getText().toString(),
+                context
+        );
     }
 
     @Override

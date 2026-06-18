@@ -20,15 +20,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class CorrectionApiClient {
+    private static final ExecutorService EXECUTOR_SERVICE = Executors.newCachedThreadPool();
+
     private final String baseUrl;
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public CorrectionApiClient(String baseUrl) {
         this.baseUrl = baseUrl;
     }
 
     public void correctText(TextCorrectionRequest request, Callback callback) {
-        executorService.execute(() -> {
+        EXECUTOR_SERVICE.execute(() -> {
             HttpURLConnection connection = null;
             try {
                 URL url = new URL(baseUrl + "/api/v1/correct-text");

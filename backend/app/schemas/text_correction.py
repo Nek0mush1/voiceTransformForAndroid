@@ -12,3 +12,5 @@ class TextCorrectionResponse(BaseModel):
     corrected_text: str
     matched_terms: list[str]
     reason: str
+    trace_id: str | None = None
+    agent_trace: dict[str, object] | None = None

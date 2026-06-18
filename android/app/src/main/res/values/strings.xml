@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Voice Transform</string>
+    <string name="ime_name">Voice Transform IME</string>
     <string name="lang_zh">&#x4E2D;&#x6587;</string>
     <string name="lang_en">EN</string>
     <string name="backend_default_url">http://10.0.2.2:8000</string>
     <string name="demo_raw_text">&#x4ECA;&#x5929;&#x4E0A;&#x5348;&#x4E0A;&#x4E86;&#x4E24;&#x8282;&#x796D;&#x7956;&#x8BFE;</string>
+    <string name="ime_voice">&#x8BED;&#x97F3;</string>
+    <string name="ime_delete">&#x5220;&#x9664;</string>
+    <string name="ime_space">&#x7A7A;&#x683C;</string>
+    <string name="ime_enter">&#x56DE;&#x8F66;</string>
+    <string name="ime_switch">&#x5207;&#x6362;</string>
     <string-array name="context_values">
         <item>chat</item>
         <item>note</item>
