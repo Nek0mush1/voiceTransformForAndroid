@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 public final class AppSettings {
-    public static final String DEFAULT_BACKEND_URL = "http://10.0.2.2:8000";
+    public static final String DEFAULT_BACKEND_URL = "http://39.106.51.35:8000";
     public static final String DEFAULT_USER_ID = "local_user";
     public static final String DEFAULT_APP_CONTEXT = "chat";
 

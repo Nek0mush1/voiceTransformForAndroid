@@ -147,7 +147,7 @@ public class MainActivity extends Activity {
                 : "Type or dictate text, then call the backend correction API.");
         userIdLabel.setText(isChinese ? "\u7528\u6237 ID" : "User ID");
         backendUrlLabel.setText(isChinese ? "\u540e\u7aef\u5730\u5740" : "Backend URL");
-        backendUrlInput.setHint(isChinese ? "\u4f8b\u5982 http://10.0.2.2:8000" : "Example: http://10.0.2.2:8000");
+        backendUrlInput.setHint(isChinese ? "\u4f8b\u5982 http://39.106.51.35:8000" : "Example: http://39.106.51.35:8000");
         contextLabel.setText(isChinese ? "\u5e94\u7528\u573a\u666f" : "App Context");
         rawTextLabel.setText(isChinese ? "\u539f\u59cb\u6587\u672c" : "Raw Text");
         rawTextInput.setHint(isChinese ? "\u8f93\u5165\u8bed\u97f3\u8bc6\u522b\u540e\u7684\u6587\u672c" : "Enter recognized speech text");
@@ -157,8 +157,8 @@ public class MainActivity extends Activity {
         matchedTermsLabel.setText(isChinese ? "\u547d\u4e2d\u672f\u8bed" : "Matched Terms");
         reasonLabel.setText(isChinese ? "\u539f\u56e0" : "Reason");
         endpointHint.setText(isChinese
-                ? "\u771f\u673a\u8bf7\u586b\u7535\u8111\u5c40\u57df\u7f51 IP\uff1b\u6a21\u62df\u5668\u53ef\u7528 http://10.0.2.2:8000"
-                : "Use your computer LAN IP for a real phone; emulator can use http://10.0.2.2:8000");
+                ? "\u771f\u673a\u548c\u6a21\u62df\u5668\u5747\u53ef\u586b\u516c\u7f51\u670d\u52a1\u5668\u5730\u5740\uff1ahttp://39.106.51.35:8000"
+                : "Use the public backend URL for both phone and emulator: http://39.106.51.35:8000");
         chineseButton.setSelected(isChinese);
         englishButton.setSelected(!isChinese);
 
