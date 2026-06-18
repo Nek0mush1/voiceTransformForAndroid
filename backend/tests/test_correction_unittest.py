@@ -2,6 +2,7 @@ import importlib
 import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 class CorrectionFlowTest(unittest.TestCase):
@@ -88,6 +89,69 @@ class CorrectionFlowTest(unittest.TestCase):
         self.assertTrue(traces)
         self.assertEqual(traces[0].raw_text, "老师讲了 cash 命中率")
         self.assertEqual(traces[0].tools[0]["name"], "MemoryTool")
+
+
+    def test_unconfigured_llm_sets_method_and_logs_call(self):
+        payload = self.correct("plain text", user_id="plain_user")
+
+        self.assertEqual(payload.corrected_text, "plain text")
+        self.assertFalse(payload.llm_used)
+        self.assertEqual(payload.correction_method, "raw_text")
+        self.assertEqual(payload.llm_error, "LLM not configured")
+        logs = self.storage.list_llm_call_logs()
+        self.assertEqual(len(logs), 1)
+        self.assertFalse(logs[0].success)
+        self.assertEqual(logs[0].trace_id, payload.trace_id)
+        self.assertEqual(logs[0].correction_method, "raw_text")
+
+    def test_llm_success_sets_method_and_logs_call(self):
+        self.storage.update_llm_config(
+            base_url="https://api.example.com/v1",
+            api_key="test-key",
+            model="example-model",
+            wire_api="responses",
+        )
+
+        def fake_call_model(self, *args, **kwargs):
+            from app.services.llm_rewrite import LLMResult
+
+            return LLMResult(text="LLM fixed text", success=True)
+
+        with patch("app.services.llm_rewrite.LLMRewriteTool.call_model", fake_call_model):
+            payload = self.correct("raw typo", user_id="plain_user")
+
+        self.assertEqual(payload.corrected_text, "LLM fixed text")
+        self.assertTrue(payload.llm_used)
+        self.assertEqual(payload.correction_method, "llm")
+        logs = self.storage.list_llm_call_logs()
+        self.assertEqual(len(logs), 1)
+        self.assertTrue(logs[0].success)
+        self.assertEqual(logs[0].trace_id, payload.trace_id)
+        self.assertEqual(logs[0].output_text, "LLM fixed text")
+        self.assertEqual(logs[0].model, "example-model")
+        self.assertEqual(logs[0].wire_api, "responses")
+
+    def test_llm_call_logs_keep_latest_50(self):
+        for index in range(55):
+            self.storage.save_llm_call_log(
+                trace_id=f"trace-{index}",
+                user_id="plain_user",
+                raw_text=f"raw {index}",
+                fallback_text=f"fallback {index}",
+                output_text=f"output {index}",
+                success=True,
+                error="",
+                correction_method="llm",
+                base_url="https://api.example.com/v1",
+                model="example-model",
+                wire_api="responses",
+                duration_ms=index,
+            )
+
+        logs = self.storage.list_llm_call_logs(limit=50)
+        self.assertEqual(len(logs), 50)
+        self.assertEqual(logs[0].trace_id, "trace-54")
+        self.assertEqual(logs[-1].trace_id, "trace-5")
 
 
 if __name__ == "__main__":

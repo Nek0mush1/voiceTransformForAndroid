@@ -15,6 +15,9 @@ class CorrectionAgentResult:
     corrected_text: str
     matched_terms: list[str]
     reason: str
+    correction_method: str
+    llm_used: bool
+    llm_error: str
     trace_id: str
     agent_trace: dict[str, object]
 
@@ -37,6 +40,8 @@ class ContextCorrectionAgent:
             profile=profile,
             terms=terms,
             candidates=pinyin_candidates,
+            trace_id=trace_id,
+            user_id=payload.user_id,
         )
         corrected_text = llm_result.text
         reason = self._reason(matched_terms, llm_result.success)
@@ -58,6 +63,10 @@ class ContextCorrectionAgent:
                 "name": "LLMRewriteTool",
                 "success": llm_result.success,
                 "error": llm_result.error,
+                "correction_method": llm_result.correction_method,
+                "model": llm_result.model,
+                "wire_api": llm_result.wire_api,
+                "duration_ms": llm_result.duration_ms,
             },
         ]
         agent_trace = {
@@ -67,6 +76,10 @@ class ContextCorrectionAgent:
             "pinyin_candidates": candidate_dicts,
             "llm_success": llm_result.success,
             "llm_error": llm_result.error,
+            "correction_method": llm_result.correction_method,
+            "llm_model": llm_result.model,
+            "llm_wire_api": llm_result.wire_api,
+            "llm_duration_ms": llm_result.duration_ms,
             "tools": tools,
         }
 
@@ -88,6 +101,9 @@ class ContextCorrectionAgent:
             corrected_text=corrected_text,
             matched_terms=matched_terms,
             reason=reason,
+            correction_method=llm_result.correction_method,
+            llm_used=llm_result.success,
+            llm_error=llm_result.error,
             trace_id=trace_id,
             agent_trace=agent_trace,
         )

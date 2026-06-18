@@ -23,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.voicetransform.api.CorrectionApiClient;
+import com.example.voicetransform.model.LlmCallLogResponse;
 import com.example.voicetransform.model.LlmConfigResponse;
 import com.example.voicetransform.model.LlmConfigTestResponse;
 import com.example.voicetransform.model.ProfileResponse;
@@ -43,6 +44,7 @@ public class MainActivity extends Activity {
     private static final int SECTION_PROFILE = 2;
     private static final int SECTION_TERMS = 3;
     private static final int SECTION_LLM = 4;
+    private static final int SECTION_LOGS = 5;
     private static final String LLM_WIRE_API_RESPONSES = "responses";
     private static final String LLM_WIRE_API_CHAT_COMPLETIONS = "chat_completions";
 
@@ -78,6 +80,7 @@ public class MainActivity extends Activity {
     private Button profileTabButton;
     private Button termsTabButton;
     private Button llmTabButton;
+    private Button logsTabButton;
     private Button voiceButton;
     private Button correctButton;
     private Button loadProfileButton;
@@ -89,12 +92,14 @@ public class MainActivity extends Activity {
     private Button loadLlmButton;
     private Button saveLlmButton;
     private Button testLlmButton;
+    private Button refreshLlmLogsButton;
     private ProgressBar progressBar;
     private View testSection;
     private View settingsSection;
     private View profileSection;
     private View termsSection;
     private View llmSection;
+    private View logsSection;
     private TextView titleText;
     private TextView subtitleText;
     private TextView backendUrlLabel;
@@ -114,9 +119,12 @@ public class MainActivity extends Activity {
     private TextView correctedTextValue;
     private TextView matchedTermsLabel;
     private TextView matchedTermsValue;
+    private TextView correctionMethodLabel;
+    private TextView correctionMethodValue;
     private TextView reasonLabel;
     private TextView reasonValue;
     private TextView backendDiagnosticValue;
+    private TextView llmLogsValue;
     private TextView endpointHint;
 
     @Override
@@ -165,6 +173,7 @@ public class MainActivity extends Activity {
         profileTabButton = findViewById(R.id.profileTabButton);
         termsTabButton = findViewById(R.id.termsTabButton);
         llmTabButton = findViewById(R.id.llmTabButton);
+        logsTabButton = findViewById(R.id.logsTabButton);
         voiceButton = findViewById(R.id.voiceButton);
         correctButton = findViewById(R.id.correctButton);
         loadProfileButton = findViewById(R.id.loadProfileButton);
@@ -176,12 +185,14 @@ public class MainActivity extends Activity {
         loadLlmButton = findViewById(R.id.loadLlmButton);
         saveLlmButton = findViewById(R.id.saveLlmButton);
         testLlmButton = findViewById(R.id.testLlmButton);
+        refreshLlmLogsButton = findViewById(R.id.refreshLlmLogsButton);
         progressBar = findViewById(R.id.progressBar);
         testSection = findViewById(R.id.testSection);
         settingsSection = findViewById(R.id.settingsSection);
         profileSection = findViewById(R.id.profileSection);
         termsSection = findViewById(R.id.termsSection);
         llmSection = findViewById(R.id.llmSection);
+        logsSection = findViewById(R.id.logsSection);
         llmBaseUrlLabel = findViewById(R.id.llmBaseUrlLabel);
         llmApiKeyLabel = findViewById(R.id.llmApiKeyLabel);
         llmModelLabel = findViewById(R.id.llmModelLabel);
@@ -191,9 +202,12 @@ public class MainActivity extends Activity {
         correctedTextValue = findViewById(R.id.correctedTextValue);
         matchedTermsLabel = findViewById(R.id.matchedTermsLabel);
         matchedTermsValue = findViewById(R.id.matchedTermsValue);
+        correctionMethodLabel = findViewById(R.id.correctionMethodLabel);
+        correctionMethodValue = findViewById(R.id.correctionMethodValue);
         reasonLabel = findViewById(R.id.reasonLabel);
         reasonValue = findViewById(R.id.reasonValue);
         backendDiagnosticValue = findViewById(R.id.backendDiagnosticValue);
+        llmLogsValue = findViewById(R.id.llmLogsValue);
         endpointHint = findViewById(R.id.endpointHint);
     }
 
@@ -259,6 +273,7 @@ public class MainActivity extends Activity {
         profileTabButton.setOnClickListener(view -> showSection(SECTION_PROFILE));
         termsTabButton.setOnClickListener(view -> showSection(SECTION_TERMS));
         llmTabButton.setOnClickListener(view -> showSection(SECTION_LLM));
+        logsTabButton.setOnClickListener(view -> showSection(SECTION_LOGS));
         voiceButton.setOnClickListener(view -> toggleVoiceRecording());
         correctButton.setOnClickListener(view -> submitCorrection());
         loadProfileButton.setOnClickListener(view -> loadProfile());
@@ -270,6 +285,7 @@ public class MainActivity extends Activity {
         loadLlmButton.setOnClickListener(view -> loadLlmConfig());
         saveLlmButton.setOnClickListener(view -> saveLlmConfig());
         testLlmButton.setOnClickListener(view -> testLlmConfig());
+        refreshLlmLogsButton.setOnClickListener(view -> loadLlmCallLogs());
         rawTextInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         showSection(activeSection);
     }
@@ -310,6 +326,7 @@ public class MainActivity extends Activity {
         profileTabButton.setText(isChinese ? "\u753b\u50cf" : "Profile");
         termsTabButton.setText(isChinese ? "\u8bcd\u5e93" : "Terms");
         llmTabButton.setText(isChinese ? "LLM" : "LLM");
+        logsTabButton.setText(isChinese ? "\u65e5\u5fd7" : "Logs");
         profileInput.setHint(isChinese ? "\u4f8b\u5982\uff1a\u8ba1\u7b97\u673a\u4e13\u4e1a\uff0c\u5b66\u4e60\u8ba1\u7ec4\u3001Agent \u5f00\u53d1" : "Example: CS student learning computer organization and Agent development");
         termLabel.setText(isChinese ? "\u4e13\u4e1a\u8bcd\u6761\uff08\u8bcd\u3001\u522b\u540d\u3001\u5206\u7c7b\u3001\u6743\u91cd\uff09" : "Term, aliases, category, weight");
         termInput.setHint(isChinese ? "\u8bcd\uff1a\u8ba1\u7ec4" : "Term: Cache");
@@ -343,7 +360,9 @@ public class MainActivity extends Activity {
         correctButton.setText(isChinese ? "\u5f00\u59cb\u7ea0\u9519" : "Correct");
         correctedTextLabel.setText(isChinese ? "\u7ea0\u9519\u7ed3\u679c" : "Corrected Text");
         matchedTermsLabel.setText(isChinese ? "\u547d\u4e2d\u672f\u8bed" : "Matched Terms");
+        correctionMethodLabel.setText(isChinese ? "\u672c\u6b21\u65b9\u6cd5" : "Correction Method");
         reasonLabel.setText(isChinese ? "\u539f\u56e0" : "Reason");
+        refreshLlmLogsButton.setText(isChinese ? "\u5237\u65b0 LLM \u8c03\u7528\u65e5\u5fd7" : "Refresh LLM Call Logs");
         endpointHint.setText(isChinese
                 ? "\u9ed8\u8ba4\u4f7f\u7528\u4e91\u7aef\u670d\u52a1\u5668 http://39.106.51.35:8000\u3002Speech Mode=system \u4f7f\u7528\u624b\u673a\u7cfb\u7edf\u8bed\u97f3\uff1bbackend \u4f7f\u7528\u670d\u52a1\u5668\u4e0a\u7684\u767e\u5ea6\u4e91\u77ed\u8bed\u97f3\u8bc6\u522b ASR\u3002"
                 : "Default cloud backend is http://39.106.51.35:8000. Speech Mode=system uses phone speech recognition; backend uses Baidu short speech ASR on the server.");
@@ -359,6 +378,9 @@ public class MainActivity extends Activity {
         if (TextUtils.isEmpty(matchedTermsValue.getText())) {
             matchedTermsValue.setText("-");
         }
+        if (TextUtils.isEmpty(correctionMethodValue.getText())) {
+            correctionMethodValue.setText(isChinese ? "\u7b49\u5f85\u7ea0\u9519" : "Waiting for correction");
+        }
         if (TextUtils.isEmpty(reasonValue.getText())) {
             reasonValue.setText(isChinese ? "\u63d0\u4ea4\u540e\u663e\u793a\u539f\u56e0" : "Reason appears after submit");
         }
@@ -371,6 +393,11 @@ public class MainActivity extends Activity {
             llmStatusValue.setText(isChinese
                     ? "\u586b\u5199\u4e2d\u8f6c\u7ad9 /v1 \u5730\u5740\u3001API Key \u548c\u6a21\u578b\u540e\u4fdd\u5b58\u3002"
                     : "Enter gateway /v1 URL, API key, and model, then save.");
+        }
+        if (TextUtils.isEmpty(llmLogsValue.getText())) {
+            llmLogsValue.setText(isChinese
+                    ? "\u70b9\u51fb\u5237\u65b0\uff0c\u67e5\u770b\u6700\u8fd1 50 \u6761\u7ea0\u9519\u65f6\u7684 LLM \u8c03\u7528\u8bb0\u5f55\u3002"
+                    : "Tap refresh to view the latest 50 LLM calls from correction requests.");
         }
         updateSectionVisibility();
     }
@@ -596,11 +623,7 @@ public class MainActivity extends Activity {
                     setLoading(false);
                     rawTextInput.setText(response.rawText);
                     rawTextInput.setSelection(rawTextInput.length());
-                    correctedTextValue.setText(response.correctedText);
-                    matchedTermsValue.setText(response.matchedTerms.isEmpty()
-                            ? "-"
-                            : TextUtils.join(", ", response.matchedTerms));
-                    reasonValue.setText(response.reason);
+                    showCorrectionResponse(response);
                     deleteRecordingFile(audioFile);
                 });
             }
@@ -808,11 +831,7 @@ public class MainActivity extends Activity {
             public void onSuccess(TextCorrectionResponse response) {
                 runOnUiThread(() -> {
                     setLoading(false);
-                    correctedTextValue.setText(response.correctedText);
-                    matchedTermsValue.setText(response.matchedTerms.isEmpty()
-                            ? "-"
-                            : TextUtils.join(", ", response.matchedTerms));
-                    reasonValue.setText(response.reason);
+                    showCorrectionResponse(response);
                 });
             }
 
@@ -955,6 +974,47 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void loadLlmCallLogs() {
+        String backendUrl = backendUrlInput.getText().toString().trim();
+        if (!validateBackendUrl(backendUrl)) {
+            showSection(SECTION_SETTINGS);
+            return;
+        }
+        saveCurrentSettings();
+        setLoading(true);
+        llmLogsValue.setText(isChinese ? "\u6b63\u5728\u62c9\u53d6 LLM \u8c03\u7528\u65e5\u5fd7..." : "Loading LLM call logs...");
+        new CorrectionApiClient(backendUrl).listLlmCallLogs(new CorrectionApiClient.LlmCallLogsCallback() {
+            @Override
+            public void onSuccess(List<LlmCallLogResponse> response) {
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    llmLogsValue.setText(formatLlmCallLogs(response));
+                });
+            }
+
+            @Override
+            public void onError(Exception exception) {
+                runOnUiThread(() -> {
+                    setLoading(false);
+                    String message = (isChinese ? "\u62c9\u53d6 LLM \u65e5\u5fd7\u5931\u8d25\uff1a" : "Load LLM logs failed: ")
+                            + formatException(exception)
+                            + "\n" + backendUrl;
+                    llmLogsValue.setText(message);
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    private void showCorrectionResponse(TextCorrectionResponse response) {
+        correctedTextValue.setText(response.correctedText);
+        matchedTermsValue.setText(response.matchedTerms.isEmpty()
+                ? "-"
+                : TextUtils.join(", ", response.matchedTerms));
+        correctionMethodValue.setText(formatCorrectionMethod(response));
+        reasonValue.setText(response.reason);
+    }
+
     private void setLoading(boolean isLoading) {
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         correctButton.setEnabled(!isLoading);
@@ -968,11 +1028,13 @@ public class MainActivity extends Activity {
         loadLlmButton.setEnabled(!isLoading);
         saveLlmButton.setEnabled(!isLoading);
         testLlmButton.setEnabled(!isLoading);
+        refreshLlmLogsButton.setEnabled(!isLoading);
         testTabButton.setEnabled(!isLoading);
         settingsTabButton.setEnabled(!isLoading);
         profileTabButton.setEnabled(!isLoading);
         termsTabButton.setEnabled(!isLoading);
         llmTabButton.setEnabled(!isLoading);
+        logsTabButton.setEnabled(!isLoading);
     }
 
     private void cancelRecording() {
@@ -1075,12 +1137,14 @@ public class MainActivity extends Activity {
         profileSection.setVisibility(activeSection == SECTION_PROFILE ? View.VISIBLE : View.GONE);
         termsSection.setVisibility(activeSection == SECTION_TERMS ? View.VISIBLE : View.GONE);
         llmSection.setVisibility(activeSection == SECTION_LLM ? View.VISIBLE : View.GONE);
+        logsSection.setVisibility(activeSection == SECTION_LOGS ? View.VISIBLE : View.GONE);
 
         testTabButton.setSelected(activeSection == SECTION_TEST);
         settingsTabButton.setSelected(activeSection == SECTION_SETTINGS);
         profileTabButton.setSelected(activeSection == SECTION_PROFILE);
         termsTabButton.setSelected(activeSection == SECTION_TERMS);
         llmTabButton.setSelected(activeSection == SECTION_LLM);
+        logsTabButton.setSelected(activeSection == SECTION_LOGS);
     }
 
     private List<String> parseAliases(String aliasesText) {
@@ -1191,6 +1255,83 @@ public class MainActivity extends Activity {
             return status + "\n\u6d88\u606f: " + response.message + "\n\u8f93\u51fa: " + output;
         }
         return status + "\nMessage: " + response.message + "\nOutput: " + output;
+    }
+
+    private String formatCorrectionMethod(TextCorrectionResponse response) {
+        String methodText = methodLabel(response.correctionMethod);
+        StringBuilder builder = new StringBuilder();
+        if (response.llmUsed) {
+            builder.append(isChinese ? "LLM \u5df2\u8c03\u7528\u5e76\u7528\u4e8e\u672c\u6b21\u7ed3\u679c" : "LLM was called and used for this result");
+        } else {
+            builder.append(isChinese ? "\u672c\u6b21\u672a\u4f7f\u7528 LLM \u7ed3\u679c" : "LLM result was not used this time");
+        }
+        builder.append("\n").append(isChinese ? "\u65b9\u6cd5: " : "Method: ").append(methodText);
+        if (!TextUtils.isEmpty(response.llmError)) {
+            builder.append("\n").append(isChinese ? "LLM \u9519\u8bef: " : "LLM error: ").append(response.llmError);
+        }
+        if (!TextUtils.isEmpty(response.traceId)) {
+            builder.append("\ntrace_id: ").append(response.traceId);
+        }
+        return builder.toString();
+    }
+
+    private String formatLlmCallLogs(List<LlmCallLogResponse> logs) {
+        if (logs.isEmpty()) {
+            return isChinese
+                    ? "\u6682\u65e0 LLM \u8c03\u7528\u65e5\u5fd7\u3002\u63d0\u4ea4\u4e00\u6b21\u7ea0\u9519\u540e\u518d\u5237\u65b0\u3002"
+                    : "No LLM call logs yet. Submit a correction, then refresh.";
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append(isChinese ? "\u6700\u8fd1 " : "Latest ")
+                .append(logs.size())
+                .append(isChinese ? " \u6761\uff08\u6700\u591a\u4fdd\u7559 50 \u6761\uff09" : " entries (max 50 retained)");
+        for (LlmCallLogResponse log : logs) {
+            builder.append("\n\n#").append(log.id)
+                    .append("  ")
+                    .append(log.success ? (isChinese ? "\u6210\u529f" : "success") : (isChinese ? "\u5931\u8d25" : "failed"))
+                    .append("  ")
+                    .append(methodLabel(log.correctionMethod));
+            builder.append("\n").append(log.createdAt)
+                    .append("  ").append(log.durationMs).append("ms");
+            builder.append("\nmodel: ").append(emptyToDash(log.model))
+                    .append("  wire: ").append(emptyToDash(log.wireApi));
+            builder.append("\nraw: ").append(shorten(log.rawText, 80));
+            builder.append("\nfallback: ").append(shorten(log.fallbackText, 80));
+            builder.append("\noutput: ").append(shorten(log.outputText, 80));
+            if (!TextUtils.isEmpty(log.error)) {
+                builder.append("\nerror: ").append(shorten(log.error, 120));
+            }
+            if (!TextUtils.isEmpty(log.traceId)) {
+                builder.append("\ntrace_id: ").append(log.traceId);
+            }
+        }
+        return builder.toString();
+    }
+
+    private String methodLabel(String method) {
+        if ("llm".equals(method)) {
+            return isChinese ? "LLM \u7ea0\u9519" : "LLM correction";
+        }
+        if ("rule_pinyin_fallback".equals(method)) {
+            return isChinese ? "\u89c4\u5219/\u62fc\u97f3 fallback" : "Rule/pinyin fallback";
+        }
+        if ("raw_text".equals(method)) {
+            return isChinese ? "\u4fdd\u7559\u539f\u6587" : "Raw text kept";
+        }
+        return TextUtils.isEmpty(method) ? "unknown" : method;
+    }
+
+    private String shorten(String value, int maxLength) {
+        if (TextUtils.isEmpty(value)) {
+            return "-";
+        }
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        if (maxLength <= 3) {
+            return value.substring(0, Math.max(0, maxLength));
+        }
+        return value.substring(0, maxLength - 3) + "...";
     }
 
     private String emptyToDash(String value) {

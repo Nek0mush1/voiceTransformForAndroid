@@ -36,6 +36,7 @@ public class VoiceInputMethodService extends InputMethodService {
     private TextView statusText;
     private TextView rawTextView;
     private TextView correctedTextView;
+    private TextView correctionMethodView;
     private View resultPanel;
     private Button voiceButton;
     private MediaRecorder mediaRecorder;
@@ -53,6 +54,7 @@ public class VoiceInputMethodService extends InputMethodService {
         statusText = view.findViewById(R.id.imeStatusText);
         rawTextView = view.findViewById(R.id.imeRawText);
         correctedTextView = view.findViewById(R.id.imeCorrectedText);
+        correctionMethodView = view.findViewById(R.id.imeCorrectionMethod);
         resultPanel = view.findViewById(R.id.imeResultPanel);
         voiceButton = view.findViewById(R.id.imeVoiceButton);
         Button deleteButton = view.findViewById(R.id.imeDeleteButton);
@@ -239,8 +241,8 @@ public class VoiceInputMethodService extends InputMethodService {
                 mainHandler.post(() -> {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
-                    showCorrectionResult(response.rawText, response.correctedText);
-                    setStatus("Review result, then insert");
+                    showCorrectionResult(response);
+                    setStatus("Review result, then insert. " + shortCorrectionMethod(response));
                 });
             }
 
@@ -341,8 +343,8 @@ public class VoiceInputMethodService extends InputMethodService {
                 mainHandler.post(() -> {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
-                    showCorrectionResult(response.rawText, response.correctedText);
-                    setStatus("Review result, then insert");
+                    showCorrectionResult(response);
+                    setStatus("Review result, then insert. " + shortCorrectionMethod(response));
                     deleteRecordingFile(audioFile);
                 });
             }
@@ -359,6 +361,23 @@ public class VoiceInputMethodService extends InputMethodService {
         });
     }
 
+    private void showCorrectionResult(TextCorrectionResponse response) {
+        pendingRawText = emptyToString(response.rawText);
+        pendingCorrectedText = TextUtils.isEmpty(response.correctedText) ? pendingRawText : response.correctedText;
+        if (rawTextView != null) {
+            rawTextView.setText("Raw: " + pendingRawText);
+        }
+        if (correctedTextView != null) {
+            correctedTextView.setText("Corrected: " + pendingCorrectedText);
+        }
+        if (correctionMethodView != null) {
+            correctionMethodView.setText(correctionMethodText(response));
+        }
+        if (resultPanel != null) {
+            resultPanel.setVisibility(View.VISIBLE);
+        }
+    }
+
     private void showCorrectionResult(String rawText, String correctedText) {
         pendingRawText = emptyToString(rawText);
         pendingCorrectedText = TextUtils.isEmpty(correctedText) ? pendingRawText : correctedText;
@@ -368,9 +387,47 @@ public class VoiceInputMethodService extends InputMethodService {
         if (correctedTextView != null) {
             correctedTextView.setText("Corrected: " + pendingCorrectedText);
         }
+        if (correctionMethodView != null) {
+            correctionMethodView.setText("Method: correction failed, raw text available");
+        }
         if (resultPanel != null) {
             resultPanel.setVisibility(View.VISIBLE);
         }
+    }
+
+    private String correctionMethodText(TextCorrectionResponse response) {
+        String text = "Method: " + methodLabel(response.correctionMethod);
+        if (response.llmUsed) {
+            text += " (LLM used)";
+        } else if (!TextUtils.isEmpty(response.llmError)) {
+            text += " (LLM not used: " + response.llmError + ")";
+        } else {
+            text += " (LLM not used)";
+        }
+        return text;
+    }
+
+    private String shortCorrectionMethod(TextCorrectionResponse response) {
+        if (response.llmUsed) {
+            return "LLM used.";
+        }
+        if (!TextUtils.isEmpty(response.llmError)) {
+            return "Fallback used: " + response.llmError;
+        }
+        return "Method: " + methodLabel(response.correctionMethod);
+    }
+
+    private String methodLabel(String method) {
+        if ("llm".equals(method)) {
+            return "LLM correction";
+        }
+        if ("rule_pinyin_fallback".equals(method)) {
+            return "rule/pinyin fallback";
+        }
+        if ("raw_text".equals(method)) {
+            return "raw text kept";
+        }
+        return TextUtils.isEmpty(method) ? "unknown" : method;
     }
 
     private void insertPendingText(boolean useCorrectedText) {
@@ -394,6 +451,9 @@ public class VoiceInputMethodService extends InputMethodService {
         }
         if (correctedTextView != null) {
             correctedTextView.setText("");
+        }
+        if (correctionMethodView != null) {
+            correctionMethodView.setText("");
         }
         if (status != null) {
             setStatus(status);

@@ -43,3 +43,20 @@ class TraceResponse(BaseModel):
     llm_error: str
     tools: list[dict[str, Any]]
     created_at: str
+
+
+class LLMCallLogResponse(BaseModel):
+    id: int
+    trace_id: str
+    user_id: str
+    raw_text: str
+    fallback_text: str
+    output_text: str
+    success: bool
+    error: str
+    correction_method: str
+    base_url: str
+    model: str
+    wire_api: str
+    duration_ms: int
+    created_at: str

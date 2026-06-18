@@ -2,6 +2,7 @@ package com.example.voicetransform.api;
 
 import com.example.voicetransform.model.TextCorrectionRequest;
 import com.example.voicetransform.model.TextCorrectionResponse;
+import com.example.voicetransform.model.LlmCallLogResponse;
 import com.example.voicetransform.model.LlmConfigResponse;
 import com.example.voicetransform.model.LlmConfigTestResponse;
 import com.example.voicetransform.model.ProfileResponse;
@@ -249,6 +250,17 @@ public class CorrectionApiClient {
         });
     }
 
+    public void listLlmCallLogs(LlmCallLogsCallback callback) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                String responseText = requestJson("GET", "/api/v1/debug/llm-calls?limit=50", null);
+                callback.onSuccess(parseLlmCallLogs(responseText));
+            } catch (Exception exception) {
+                callback.onError(exception);
+            }
+        });
+    }
+
     private String requestJson(String method, String path, JSONObject body) throws Exception {
         HttpURLConnection connection = null;
         try {
@@ -317,8 +329,37 @@ public class CorrectionApiClient {
                 object.getString("raw_text"),
                 object.getString("corrected_text"),
                 matchedTerms,
-                object.getString("reason")
+                object.getString("reason"),
+                object.optString("correction_method", "unknown"),
+                object.optBoolean("llm_used", false),
+                object.optString("llm_error", ""),
+                object.optString("trace_id", "")
         );
+    }
+
+    private List<LlmCallLogResponse> parseLlmCallLogs(String responseText) throws Exception {
+        JSONArray array = new JSONArray(responseText);
+        List<LlmCallLogResponse> logs = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject object = array.getJSONObject(i);
+            logs.add(new LlmCallLogResponse(
+                    object.optInt("id", 0),
+                    object.optString("trace_id", ""),
+                    object.optString("user_id", ""),
+                    object.optString("raw_text", ""),
+                    object.optString("fallback_text", ""),
+                    object.optString("output_text", ""),
+                    object.optBoolean("success", false),
+                    object.optString("error", ""),
+                    object.optString("correction_method", "unknown"),
+                    object.optString("base_url", ""),
+                    object.optString("model", ""),
+                    object.optString("wire_api", ""),
+                    object.optInt("duration_ms", 0),
+                    object.optString("created_at", "")
+            ));
+        }
+        return logs;
     }
 
     private List<TermResponse> parseTerms(String responseText) throws Exception {
@@ -420,6 +461,12 @@ public class CorrectionApiClient {
 
     public interface DiagnosticCallback {
         void onSuccess(String healthText, String statusText);
+
+        void onError(Exception exception);
+    }
+
+    public interface LlmCallLogsCallback {
+        void onSuccess(List<LlmCallLogResponse> response);
 
         void onError(Exception exception);
     }

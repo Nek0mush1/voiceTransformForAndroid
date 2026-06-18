@@ -107,6 +107,23 @@ def init_db() -> None:
                 wire_api TEXT NOT NULL DEFAULT 'chat_completions',
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS llm_call_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                raw_text TEXT NOT NULL,
+                fallback_text TEXT NOT NULL,
+                output_text TEXT NOT NULL,
+                success INTEGER NOT NULL,
+                error TEXT NOT NULL,
+                correction_method TEXT NOT NULL,
+                base_url TEXT NOT NULL,
+                model TEXT NOT NULL,
+                wire_api TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
         ensure_llm_config_schema(connection)
@@ -177,6 +194,24 @@ class TraceRecord:
     llm_success: bool
     llm_error: str
     tools: list[dict[str, Any]]
+    created_at: str
+
+
+@dataclass(frozen=True)
+class LLMCallLogRecord:
+    id: int
+    trace_id: str
+    user_id: str
+    raw_text: str
+    fallback_text: str
+    output_text: str
+    success: bool
+    error: str
+    correction_method: str
+    base_url: str
+    model: str
+    wire_api: str
+    duration_ms: int
     created_at: str
 
 
@@ -385,6 +420,106 @@ def list_traces(limit: int = 20) -> list[TraceRecord]:
                 llm_success=bool(row["llm_success"]),
                 llm_error=row["llm_error"],
                 tools=json.loads(row["tools_json"]),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+
+def save_llm_call_log(
+    trace_id: str,
+    user_id: str,
+    raw_text: str,
+    fallback_text: str,
+    output_text: str,
+    success: bool,
+    error: str,
+    correction_method: str,
+    base_url: str,
+    model: str,
+    wire_api: str,
+    duration_ms: int,
+) -> None:
+    init_db()
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO llm_call_logs
+            (
+                trace_id,
+                user_id,
+                raw_text,
+                fallback_text,
+                output_text,
+                success,
+                error,
+                correction_method,
+                base_url,
+                model,
+                wire_api,
+                duration_ms,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trace_id,
+                user_id,
+                raw_text,
+                fallback_text,
+                output_text,
+                1 if success else 0,
+                error,
+                correction_method,
+                base_url,
+                model,
+                wire_api,
+                duration_ms,
+                now_iso(),
+            ),
+        )
+        connection.execute(
+            """
+            DELETE FROM llm_call_logs
+            WHERE id NOT IN (
+                SELECT id FROM llm_call_logs
+                ORDER BY created_at DESC, id DESC
+                LIMIT 50
+            )
+            """
+        )
+
+
+def list_llm_call_logs(limit: int = 50) -> list[LLMCallLogRecord]:
+    init_db()
+    bounded_limit = max(1, min(limit, 50))
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, trace_id, user_id, raw_text, fallback_text, output_text,
+                   success, error, correction_method, base_url, model, wire_api,
+                   duration_ms, created_at
+            FROM llm_call_logs
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (bounded_limit,),
+        ).fetchall()
+        return [
+            LLMCallLogRecord(
+                id=row["id"],
+                trace_id=row["trace_id"],
+                user_id=row["user_id"],
+                raw_text=row["raw_text"],
+                fallback_text=row["fallback_text"],
+                output_text=row["output_text"],
+                success=bool(row["success"]),
+                error=row["error"],
+                correction_method=row["correction_method"],
+                base_url=row["base_url"],
+                model=row["model"],
+                wire_api=row["wire_api"],
+                duration_ms=row["duration_ms"],
                 created_at=row["created_at"],
             )
             for row in rows

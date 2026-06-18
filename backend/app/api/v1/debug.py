@@ -3,7 +3,7 @@ import os
 from fastapi import APIRouter, Query
 
 from app import storage
-from app.schemas.memory import TraceResponse
+from app.schemas.memory import LLMCallLogResponse, TraceResponse
 
 
 router = APIRouter(tags=["debug"])
@@ -46,4 +46,27 @@ def list_debug_traces(limit: int = Query(default=20, ge=1, le=100)) -> list[Trac
             created_at=record.created_at,
         )
         for record in storage.list_traces(limit)
+    ]
+
+
+@router.get("/debug/llm-calls", response_model=list[LLMCallLogResponse])
+def list_llm_call_logs(limit: int = Query(default=50, ge=1, le=50)) -> list[LLMCallLogResponse]:
+    return [
+        LLMCallLogResponse(
+            id=record.id,
+            trace_id=record.trace_id,
+            user_id=record.user_id,
+            raw_text=record.raw_text,
+            fallback_text=record.fallback_text,
+            output_text=record.output_text,
+            success=record.success,
+            error=record.error,
+            correction_method=record.correction_method,
+            base_url=record.base_url,
+            model=record.model,
+            wire_api=record.wire_api,
+            duration_ms=record.duration_ms,
+            created_at=record.created_at,
+        )
+        for record in storage.list_llm_call_logs(limit)
     ]

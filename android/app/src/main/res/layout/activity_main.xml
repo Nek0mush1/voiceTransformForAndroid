@@ -92,6 +92,10 @@
                 <Button
                     android:id="@+id/llmTabButton"
                     style="@style/SectionTabButton" />
+
+                <Button
+                    android:id="@+id/logsTabButton"
+                    style="@style/SectionTabButton" />
             </LinearLayout>
         </HorizontalScrollView>
 
@@ -158,6 +162,15 @@
 
                 <TextView
                     android:id="@+id/matchedTermsValue"
+                    style="@style/ResultValue" />
+
+                <TextView
+                    android:id="@+id/correctionMethodLabel"
+                    style="@style/ResultLabel"
+                    android:layout_marginTop="14dp" />
+
+                <TextView
+                    android:id="@+id/correctionMethodValue"
                     style="@style/ResultValue" />
 
                 <TextView
@@ -463,6 +476,30 @@
                 android:padding="12dp"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/logsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/refreshLlmLogsButton"
+                style="@style/PrimaryButton"
+                android:layout_width="match_parent" />
+
+            <TextView
+                android:id="@+id/llmLogsValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/result_background"
+                android:minHeight="160dp"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <ProgressBar

@@ -12,5 +12,8 @@ class TextCorrectionResponse(BaseModel):
     corrected_text: str
     matched_terms: list[str]
     reason: str
+    correction_method: str = "unknown"
+    llm_used: bool = False
+    llm_error: str = ""
     trace_id: str | None = None
     agent_trace: dict[str, object] | None = None

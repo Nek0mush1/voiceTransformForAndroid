@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -24,6 +25,11 @@ class LLMResult:
     text: str
     success: bool
     error: str = ""
+    correction_method: str = "llm"
+    base_url: str = ""
+    model: str = ""
+    wire_api: str = ""
+    duration_ms: int = 0
 
 
 class LLMRewriteTool:
@@ -34,17 +40,31 @@ class LLMRewriteTool:
         profile: ProfileRecord,
         terms: list[TermRecord],
         candidates: list[PinyinCandidate],
+        trace_id: str = "",
+        user_id: str = "",
     ) -> LLMResult:
         config = storage.get_llm_config()
+        normalized_wire_api = storage.normalize_llm_wire_api(config.wire_api)
         if not config.base_url or not config.api_key or not config.model:
-            return LLMResult(text=fallback_text, success=False, error="LLM not configured")
+            result = LLMResult(
+                text=fallback_text,
+                success=False,
+                error="LLM not configured",
+                correction_method="rule_pinyin_fallback" if fallback_text != raw_text else "raw_text",
+                base_url=config.base_url,
+                model=config.model,
+                wire_api=normalized_wire_api,
+            )
+            self._save_correction_log(trace_id, user_id, raw_text, fallback_text, result)
+            return result
 
         prompt = self._build_prompt(raw_text, fallback_text, profile, terms, candidates)
+        started_at = time.perf_counter()
         result = self.call_model(
             base_url=config.base_url,
             api_key=config.api_key,
             model=config.model,
-            wire_api=config.wire_api,
+            wire_api=normalized_wire_api,
             messages=[
                 {
                     "role": "system",
@@ -59,11 +79,45 @@ class LLMRewriteTool:
             ],
             timeout=12,
         )
+        duration_ms = int((time.perf_counter() - started_at) * 1000)
         if not result.success:
-            return LLMResult(text=fallback_text, success=False, error=result.error)
+            fallback_result = LLMResult(
+                text=fallback_text,
+                success=False,
+                error=result.error or "LLM returned empty text",
+                correction_method="rule_pinyin_fallback" if fallback_text != raw_text else "raw_text",
+                base_url=config.base_url,
+                model=config.model,
+                wire_api=normalized_wire_api,
+                duration_ms=duration_ms,
+            )
+            self._save_correction_log(trace_id, user_id, raw_text, fallback_text, fallback_result)
+            return fallback_result
         if not result.text:
-            return LLMResult(text=fallback_text, success=False, error="LLM returned empty text")
-        return result
+            empty_result = LLMResult(
+                text=fallback_text,
+                success=False,
+                error="LLM returned empty text",
+                correction_method="rule_pinyin_fallback" if fallback_text != raw_text else "raw_text",
+                base_url=config.base_url,
+                model=config.model,
+                wire_api=normalized_wire_api,
+                duration_ms=duration_ms,
+            )
+            self._save_correction_log(trace_id, user_id, raw_text, fallback_text, empty_result)
+            return empty_result
+
+        final_result = LLMResult(
+            text=result.text,
+            success=True,
+            correction_method="llm",
+            base_url=config.base_url,
+            model=config.model,
+            wire_api=normalized_wire_api,
+            duration_ms=duration_ms,
+        )
+        self._save_correction_log(trace_id, user_id, raw_text, fallback_text, final_result)
+        return final_result
 
     def call_model(
         self,
@@ -150,6 +204,31 @@ class LLMRewriteTool:
             return LLMResult(text="", success=False, error=self._format_http_error(error))
         except (KeyError, TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
             return LLMResult(text="", success=False, error=str(error))
+
+    def _save_correction_log(
+        self,
+        trace_id: str,
+        user_id: str,
+        raw_text: str,
+        fallback_text: str,
+        result: LLMResult,
+    ) -> None:
+        if not trace_id or not user_id:
+            return
+        storage.save_llm_call_log(
+            trace_id=trace_id,
+            user_id=user_id,
+            raw_text=raw_text,
+            fallback_text=fallback_text,
+            output_text=result.text,
+            success=result.success,
+            error=result.error,
+            correction_method=result.correction_method,
+            base_url=result.base_url,
+            model=result.model,
+            wire_api=result.wire_api,
+            duration_ms=result.duration_ms,
+        )
 
     def _build_prompt(
         self,
