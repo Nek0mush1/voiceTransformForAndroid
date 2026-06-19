@@ -152,7 +152,8 @@ Prompt 包含：
 Android 目录已经是系统输入法 MVP：
 
 - `VoiceInputMethodService` 注册为 `Voice Transform IME`。
-- 键盘面板包含语音、删除、空格、回车、切换输入法按钮。
+- 键盘面板包含拼音/ABC/123 模式、候选词栏、删除、空格、回车；空格键长按进入语音，松手自动停止并纠错。
+- Android 端内置 THUOCL IT 专业词库用于本地拼音候选；Rime 朙月拼音只用于单字读音索引，不直接暴露完整 Rime 候选，避免生僻字污染候选栏。
 - 默认语音路径：Android `SpeechRecognizer` -> `/api/v1/correct-text` -> 展示 raw/corrected -> 用户确认插入。
 - 失败时不直接上屏，用户可以插入原文或取消。
 - 设置页可以保存后端地址、用户 ID、app context、语音模式。

@@ -1,115 +1,73 @@
-# Android IME MVP
+# Android IME
 
-This module is a real Android input method backed by the FastAPI correction service.
+This Android project contains two input method clients:
 
-## What It Does
+- `:app`: the original Voice Transform IME and settings/debug app.
+- `:trime`: a Voice Transform build of the full Trime/Rime Android input method UI, with the existing voice correction flow wired into Trime's voice key.
 
-- Registers `Voice Transform IME` through `InputMethodService`.
-- Shows voice, delete, space, and enter buttons. Use the phone system keyboard switch key to leave this IME.
-- Uses Android `SpeechRecognizer` by default to get raw Chinese speech text.
-- Sends recognized text to `POST /api/v1/correct-text`.
-- Shows raw text and corrected text before insertion.
-- Lets the user insert corrected text, insert raw text, or cancel.
-- Provides an app settings screen for backend URL, user ID, app context, speech mode, user profile, and professional terms.
-- Keeps optional backend ASR mode for `POST /api/v1/correct-audio` when ASR credentials are configured.
+The backend target defaults to `http://39.106.51.35:8000`, matching the production server described in `AGENTS.md`.
 
-## Run
+## Trime Build
 
-1. Start the backend from the repository root:
-
-   ```powershell
-   .\backend\start_server.ps1
-   ```
-
-2. Open `android/` in Android Studio.
-3. Run the `app` configuration on an emulator or phone.
-4. Open the Voice Transform app once and grant microphone permission.
-5. Configure the backend URL:
-
-   ```text
-   Emulator: http://10.0.2.2:8000
-   Phone:    http://<computer-lan-ip>:8000
-   ```
-
-6. Keep speech mode as `system` unless backend ASR keys are configured.
-7. Enable the input method:
-
-   ```text
-   Settings -> System -> Keyboard -> On-screen keyboard -> Manage keyboards -> Voice Transform IME
-   ```
-
-8. Tap any text field, switch to `Voice Transform IME`, then use the voice button.
-
-## App Home Sections
-
-The launcher Activity is split into sections so the home screen is not one long form:
-
-- Test: voice/text correction test console.
-- Settings: backend URL, user ID, app context, and speech mode.
-- Profile: load/save the user profile.
-- Terms: add, refresh, and delete professional terms.
-- LLM: configure and test an OpenAI-compatible LLM gateway. It supports both `responses` and `chat_completions` wire APIs.
-
-Backend URL, user ID, app context, and speech mode are saved locally.
-
-## Settings Details
-
-- Speech mode:
-  - `system`: Android SpeechRecognizer, then backend text correction. This is the default.
-  - `backend`: record audio and upload to backend ASR. This requires Baidu ASR environment variables on the backend.
-- Profile buttons load/save `GET/PUT /api/v1/profile/{user_id}`.
-- Term buttons add, refresh, and delete `GET/POST/DELETE /api/v1/terms`.
-- LLM buttons load/save/test `GET/PUT/POST /api/v1/llm-config`.
-
-Adding a term on the phone affects the next IME correction because the input method reads the same saved backend URL and user ID.
-
-For an API relay, set the LLM URL to the relay's OpenAI-compatible `/v1` base URL, for example:
-
-```text
-https://api.example.com/v1
-```
-
-Choose the LLM Wire API that matches the relay:
-
-```text
-responses        -> POST {LLM URL}/responses
-chat_completions -> POST {LLM URL}/chat/completions
-```
-
-For a relay configured like Codex `wire_api = "responses"`, use:
-
-```text
-URL: https://www.micuapi.ai/v1
-Model: gpt-5.5
-Wire API: responses
-```
-
-Leave the API key field empty when saving if you only want to change the URL or model and keep the saved key.
-
-## Manual Test
-
-- Space inserts one blank character in the current field.
-- Enter sends an enter key event.
-- Delete removes one character before the cursor.
-- Use the phone system keyboard switch key or navigation bar keyboard selector to leave this IME.
-- Voice in `system` mode:
-  - Speak `今天上午上了两节祭祖课`.
-  - Confirm that the keyboard shows raw and corrected text.
-  - Tap insert corrected.
-  - Expected insertion: `今天上午上了两节计组课`.
-- Add a term in the app:
-  - term: `线程`
-  - aliases: `现金`
-  - category: `system`
-  - weight: `1.0`
-  - Then `老师讲了现金调度` should correct to `老师讲了线程调度`.
-
-## Build
-
-If the shell defaults to Java 8, point Gradle at Android Studio's JBR:
+Use JDK 17. If the shell defaults to another Java version, point Gradle at Android Studio's JBR:
 
 ```powershell
+cd D:\codeLibrary\voiceTransformForAndroid\android
+$env:JAVA_HOME='D:\Softs\Android Studio\jbr'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+.\gradlew.bat :trime:assembleDebug
+```
+
+The easiest APK to install on a phone is the universal debug build:
+
+```text
+D:\codeLibrary\voiceTransformForAndroid\android\trime\build\outputs\apk\debug\com.example.voicetransform.trime-95d8a4b-universal-debug.apk
+```
+
+ABI-specific APKs are also generated in the same directory. Most modern phones use `arm64-v8a`.
+
+## Trime Install
+
+With a connected phone and USB debugging enabled:
+
+```powershell
+C:\Users\arinoay4\AppData\Local\Android\Sdk\platform-tools\adb.exe install -r .\trime\build\outputs\apk\debug\com.example.voicetransform.trime-95d8a4b-universal-debug.apk
+```
+
+Then enable and select the input method on the phone:
+
+```text
+Settings -> System -> Keyboard -> On-screen keyboard -> Manage keyboards -> Voice Transform Trime
+```
+
+Tap any text field and switch to `Voice Transform Trime`. If you still see the old rounded custom keyboard with `Rime did not handle...`, you are using `Voice Transform IME`, not the Trime input method.
+
+## Trime Behavior
+
+- Chinese pinyin input is handled by the Trime/Rime engine, not by the old Java candidate picker.
+- The default schema is `voice_transform_pinyin`, a simplified Chinese pinyin schema with the Voice Transform dictionary bundled under `assets/shared`.
+- `jizu` should offer `计组`.
+- `jiwang` should offer `计网`.
+- `shujujiegou` should offer `数据结构`.
+- `caozuoxitong` should offer `操作系统`.
+- Long press the space key to start voice recording; release to stop recording and upload to `POST /api/v1/correct-audio`.
+- The correction dialog lets the user insert corrected text, insert raw text, or cancel.
+
+## Original App Build
+
+The original IME can still be built separately:
+
+```powershell
+cd D:\codeLibrary\voiceTransformForAndroid\android
 $env:JAVA_HOME='D:\Softs\Android Studio\jbr'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 .\gradlew.bat :app:assembleDebug
 ```
+
+Its debug APK is written to:
+
+```text
+D:\codeLibrary\voiceTransformForAndroid\android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+Use this module only when testing the old custom keyboard. For Trime UI testing, install `:trime`.

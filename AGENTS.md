@@ -1,4 +1,4 @@
-# Project Guidance
+﻿# Project Guidance
 
 ## Must Read First
 
@@ -164,3 +164,4 @@ The following frontend guidance is a style reference for future UI work. It is n
 4. 不要堆砌“智能、赋能、下一代、极致体验”等空泛文案。
 5. 不要使用过多 emoji。
 6. 不要只给静态页面，要考虑真实使用流程。
+

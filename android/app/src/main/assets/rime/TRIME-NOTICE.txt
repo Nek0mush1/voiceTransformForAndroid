@@ -1,0 +1,18 @@
+Voice Transform bundles Android Rime runtime assets from osfans/Trime v3.3.10.
+
+Included binary artifacts:
+- android/app/src/main/jniLibs/*/librime_jni.so
+
+Included data artifacts:
+- android/app/src/main/assets/rime/shared/*
+
+Upstream projects:
+- Trime: https://github.com/osfans/trime
+- librime: https://github.com/rime/librime
+- rime-luna-pinyin: https://github.com/rime/rime-luna-pinyin
+- OpenCC: https://github.com/BYVoid/OpenCC
+
+Trime is licensed under GPL-3.0-or-later. The bundled native library and shared
+Rime data were extracted from the public Trime v3.3.10 release APKs. Keep this
+notice with the packaged assets and preserve upstream license files when
+redistributing the APK.

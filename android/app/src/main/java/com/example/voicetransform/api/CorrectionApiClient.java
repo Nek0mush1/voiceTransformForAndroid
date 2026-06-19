@@ -31,6 +31,10 @@ import java.util.concurrent.Executors;
 
 public class CorrectionApiClient {
     private static final ExecutorService EXECUTOR_SERVICE = Executors.newCachedThreadPool();
+    private static final int CONNECT_TIMEOUT_MS = 8000;
+    private static final int JSON_READ_TIMEOUT_MS = 15000;
+    private static final int TEXT_CORRECTION_READ_TIMEOUT_MS = 90000;
+    private static final int AUDIO_CORRECTION_READ_TIMEOUT_MS = 120000;
 
     private final String baseUrl;
 
@@ -45,8 +49,8 @@ public class CorrectionApiClient {
                 URL url = new URL(baseUrl + "/api/v1/correct-text");
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("POST");
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(10000);
+                connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                connection.setReadTimeout(TEXT_CORRECTION_READ_TIMEOUT_MS);
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setDoOutput(true);
@@ -88,8 +92,8 @@ public class CorrectionApiClient {
                 URL url = new URL(baseUrl + "/api/v1/correct-audio");
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("POST");
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(60000);
+                connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                connection.setReadTimeout(AUDIO_CORRECTION_READ_TIMEOUT_MS);
                 connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setDoOutput(true);
@@ -267,8 +271,8 @@ public class CorrectionApiClient {
             URL url = new URL(baseUrl + path);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod(method);
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(10000);
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(JSON_READ_TIMEOUT_MS);
             connection.setRequestProperty("Accept", "application/json");
 
             if (body != null) {

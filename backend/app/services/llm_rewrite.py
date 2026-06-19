@@ -18,6 +18,8 @@ DEFAULT_LLM_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/126.0.0.0 Safari/537.36"
 )
+DEFAULT_LLM_TIMEOUT_SECONDS = 30
+MAX_LLM_TIMEOUT_SECONDS = 90
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ class LLMRewriteTool:
             return result
 
         prompt = self._build_prompt(raw_text, fallback_text, profile, terms, candidates)
+        timeout = self._timeout_for_text(raw_text)
         started_at = time.perf_counter()
         result = self.call_model(
             base_url=config.base_url,
@@ -77,7 +80,7 @@ class LLMRewriteTool:
                 },
                 {"role": "user", "content": prompt},
             ],
-            timeout=12,
+            timeout=timeout,
         )
         duration_ms = int((time.perf_counter() - started_at) * 1000)
         if not result.success:
@@ -253,6 +256,17 @@ class LLMRewriteTool:
             "or domain-term recognition mistakes. If uncertain, keep the fallback text. "
             "Output only the final text."
         )
+
+    def _timeout_for_text(self, raw_text: str) -> int:
+        configured_timeout = os.getenv("LLM_TIMEOUT_SECONDS", "").strip()
+        if configured_timeout:
+            try:
+                return max(5, min(MAX_LLM_TIMEOUT_SECONDS, int(configured_timeout)))
+            except ValueError:
+                pass
+
+        extra_seconds = len(raw_text) // 80 * 15
+        return min(MAX_LLM_TIMEOUT_SECONDS, DEFAULT_LLM_TIMEOUT_SECONDS + extra_seconds)
 
     def _chat_completions_url(self, base_url: str) -> str:
         normalized = base_url.strip().rstrip("/")
