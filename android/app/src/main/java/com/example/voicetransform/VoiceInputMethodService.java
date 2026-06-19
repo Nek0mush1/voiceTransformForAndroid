@@ -29,9 +29,18 @@ import java.util.ArrayList;
 
 public class VoiceInputMethodService extends InputMethodService {
     private static final long MAX_RECORDING_MS = 60000;
+    private static final long DELETE_REPEAT_INITIAL_DELAY_MS = 350;
+    private static final long DELETE_REPEAT_INTERVAL_MS = 60;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable recordingTimeoutRunnable = this::stopRecordingAndUpload;
+    private final Runnable deleteRepeatRunnable = new Runnable() {
+        @Override
+        public void run() {
+            deleteBackward();
+            mainHandler.postDelayed(this, DELETE_REPEAT_INTERVAL_MS);
+        }
+    };
 
     private TextView statusText;
     private TextView rawTextView;
@@ -39,9 +48,21 @@ public class VoiceInputMethodService extends InputMethodService {
     private TextView correctionMethodView;
     private View resultPanel;
     private Button voiceButton;
+    private Button deleteButton;
+    private Button spaceButton;
+    private Button enterButton;
+    private Button insertCorrectedButton;
+    private Button insertRawButton;
+    private Button cancelButton;
+    private Button chineseButton;
+    private Button englishButton;
+    private Button rawToggleButton;
     private MediaRecorder mediaRecorder;
     private SpeechRecognizer speechRecognizer;
     private File recordingFile;
+    private boolean isChinese = true;
+    private boolean isRawExpanded;
+    private boolean isDeleteRepeating;
     private boolean isRecording;
     private boolean isListening;
     private boolean isCorrecting;
@@ -57,23 +78,50 @@ public class VoiceInputMethodService extends InputMethodService {
         correctionMethodView = view.findViewById(R.id.imeCorrectionMethod);
         resultPanel = view.findViewById(R.id.imeResultPanel);
         voiceButton = view.findViewById(R.id.imeVoiceButton);
-        Button deleteButton = view.findViewById(R.id.imeDeleteButton);
-        Button spaceButton = view.findViewById(R.id.imeSpaceButton);
-        Button enterButton = view.findViewById(R.id.imeEnterButton);
-        Button insertCorrectedButton = view.findViewById(R.id.imeInsertCorrectedButton);
-        Button insertRawButton = view.findViewById(R.id.imeInsertRawButton);
-        Button cancelButton = view.findViewById(R.id.imeCancelButton);
+        deleteButton = view.findViewById(R.id.imeDeleteButton);
+        spaceButton = view.findViewById(R.id.imeSpaceButton);
+        enterButton = view.findViewById(R.id.imeEnterButton);
+        insertCorrectedButton = view.findViewById(R.id.imeInsertCorrectedButton);
+        insertRawButton = view.findViewById(R.id.imeInsertRawButton);
+        cancelButton = view.findViewById(R.id.imeCancelButton);
+        chineseButton = view.findViewById(R.id.imeChineseButton);
+        englishButton = view.findViewById(R.id.imeEnglishButton);
+        rawToggleButton = view.findViewById(R.id.imeRawToggleButton);
 
         voiceButton.setOnClickListener(v -> startVoiceInput());
-        deleteButton.setOnClickListener(v -> deleteBackward());
+        deleteButton.setOnClickListener(v -> {
+            if (!isDeleteRepeating) {
+                deleteBackward();
+            }
+        });
+        deleteButton.setOnLongClickListener(v -> {
+            startDeleteRepeat();
+            return true;
+        });
+        deleteButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == android.view.MotionEvent.ACTION_UP
+                    || event.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                stopDeleteRepeat();
+            }
+            return false;
+        });
         spaceButton.setOnClickListener(v -> commitText(" "));
         enterButton.setOnClickListener(v -> sendEnter());
         insertCorrectedButton.setOnClickListener(v -> insertPendingText(true));
         insertRawButton.setOnClickListener(v -> insertPendingText(false));
-        cancelButton.setOnClickListener(v -> clearPendingResult("Canceled"));
+        cancelButton.setOnClickListener(v -> clearPendingResult(text("\u5df2\u53d6\u6d88", "Canceled")));
+        chineseButton.setOnClickListener(v -> {
+            setLanguage(true);
+        });
+        englishButton.setOnClickListener(v -> {
+            setLanguage(false);
+        });
+        rawToggleButton.setOnClickListener(v -> toggleRawExpansion());
 
+        isChinese = AppSettings.isChinese(this);
+        applyLanguage();
         clearPendingResult(null);
-        setStatus("Ready");
+        setStatus(text("\u5c31\u7eea", "Ready"));
         return view;
     }
 
@@ -88,12 +136,14 @@ public class VoiceInputMethodService extends InputMethodService {
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
+        stopDeleteRepeat();
         cancelRecording();
         cancelSpeechRecognition();
     }
 
     @Override
     public void onDestroy() {
+        stopDeleteRepeat();
         cancelRecording();
         destroySpeechRecognizer();
         super.onDestroy();
@@ -115,16 +165,19 @@ public class VoiceInputMethodService extends InputMethodService {
             if (speechRecognizer != null) {
                 speechRecognizer.stopListening();
             }
-            setStatus("Finishing speech recognition...");
+            setStatus(text("\u6b63\u5728\u7ed3\u675f\u8bc6\u522b...", "Finishing speech recognition..."));
             return;
         }
         if (!hasAudioPermission()) {
-            setStatus("Grant microphone permission in Voice Transform first");
+            setStatus(text("\u8bf7\u5148\u6388\u4e88\u9ea6\u514b\u98ce\u6743\u9650", "Grant microphone permission first"));
             openSettingsActivity();
             return;
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            setStatus("System speech unavailable. Set Speech Mode to backend only after backend ASR is configured.");
+            setStatus(text(
+                    "\u7cfb\u7edf\u8bed\u97f3\u4e0d\u53ef\u7528\uff0c\u8bf7\u5728\u540e\u7aef\u8bed\u97f3\u914d\u7f6e\u5b8c\u6210\u540e\u4f7f\u7528\u540e\u7aef\u6a21\u5f0f\u3002",
+                    "System speech unavailable. Configure backend ASR before using backend mode."
+            ));
             return;
         }
 
@@ -139,12 +192,12 @@ public class VoiceInputMethodService extends InputMethodService {
         try {
             speechRecognizer.startListening(intent);
             isListening = true;
-            voiceButton.setText("Stop");
-            setStatus("Listening...");
+            voiceButton.setText(text("\u505c\u6b62", "Stop"));
+            setStatus(text("\u6b63\u5728\u542c\u5199...", "Listening..."));
         } catch (Exception exception) {
             isListening = false;
-            voiceButton.setText(R.string.ime_voice);
-            setStatus("System speech failed: " + exception.getClass().getSimpleName());
+            resetVoiceButton();
+            setStatus(text("\u7cfb\u7edf\u8bed\u97f3\u542f\u52a8\u5931\u8d25\uff1a", "System speech failed: ") + exception.getClass().getSimpleName());
         }
     }
 
@@ -156,12 +209,12 @@ public class VoiceInputMethodService extends InputMethodService {
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override
             public void onReadyForSpeech(Bundle params) {
-                setStatus("Listening...");
+                setStatus(text("\u6b63\u5728\u542c\u5199...", "Listening..."));
             }
 
             @Override
             public void onBeginningOfSpeech() {
-                setStatus("Listening... speak clearly");
+                setStatus(text("\u5df2\u542c\u5230\u58f0\u97f3\uff0c\u8bf7\u7ee7\u7eed\u8bf4\u3002", "Listening... speak clearly."));
             }
 
             @Override
@@ -174,20 +227,20 @@ public class VoiceInputMethodService extends InputMethodService {
 
             @Override
             public void onEndOfSpeech() {
-                finishSystemListening("Recognizing...");
+                finishSystemListening(text("\u8bc6\u522b\u4e2d...", "Recognizing..."));
             }
 
             @Override
             public void onError(int error) {
-                finishSystemListening("Speech recognition failed: " + speechErrorText(error));
+                finishSystemListening(text("\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\uff1a", "Speech recognition failed: ") + speechErrorText(error));
             }
 
             @Override
             public void onResults(Bundle results) {
-                finishSystemListening("Correcting...");
+                finishSystemListening(text("\u7ea0\u9519\u4e2d...", "Correcting..."));
                 String rawText = firstSpeechResult(results);
                 if (TextUtils.isEmpty(rawText)) {
-                    setStatus("No speech text recognized");
+                    setStatus(text("\u672a\u8bc6\u522b\u5230\u6587\u672c", "No speech text recognized"));
                     return;
                 }
                 requestTextCorrection(rawText);
@@ -197,7 +250,7 @@ public class VoiceInputMethodService extends InputMethodService {
             public void onPartialResults(Bundle partialResults) {
                 String text = firstSpeechResult(partialResults);
                 if (!TextUtils.isEmpty(text)) {
-                    setStatus("Heard: " + text);
+                    setStatus((isChinese ? "\u5df2\u542c\u5230\uff1a" : "Heard: ") + text);
                 }
             }
 
@@ -226,7 +279,7 @@ public class VoiceInputMethodService extends InputMethodService {
     private void requestTextCorrection(String rawText) {
         isCorrecting = true;
         voiceButton.setEnabled(false);
-        setStatus("Correcting...");
+        setStatus(text("\u7ea0\u9519\u4e2d...", "Correcting..."));
 
         String backendUrl = AppSettings.getBackendUrl(this);
         TextCorrectionRequest request = new TextCorrectionRequest(
@@ -242,7 +295,7 @@ public class VoiceInputMethodService extends InputMethodService {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
                     showCorrectionResult(response);
-                    setStatus("Review result, then insert. " + shortCorrectionMethod(response));
+                    setStatus(text("\u8bf7\u786e\u8ba4\u7ed3\u679c\u540e\u63d2\u5165\u3002", "Review result, then insert. ") + shortCorrectionMethod(response));
                 });
             }
 
@@ -252,7 +305,7 @@ public class VoiceInputMethodService extends InputMethodService {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
                     showCorrectionResult(rawText, rawText);
-                    setStatus("Correction failed. Raw text is available. Backend: " + backendUrl);
+                    setStatus(text("\u7ea0\u9519\u5931\u8d25\uff0c\u5df2\u4fdd\u7559\u539f\u6587\u3002\u540e\u7aef\uff1a", "Correction failed. Raw text is available. Backend: ") + backendUrl);
                 });
             }
         });
@@ -264,12 +317,12 @@ public class VoiceInputMethodService extends InputMethodService {
             return;
         }
         if (!hasAudioPermission()) {
-            setStatus("Grant microphone permission in Voice Transform first");
+            setStatus(text("\u8bf7\u5148\u6388\u4e88\u9ea6\u514b\u98ce\u6743\u9650", "Grant microphone permission first"));
             openSettingsActivity();
             return;
         }
         clearPendingResult(null);
-        setStatus("Backend ASR mode. Recording requires configured backend ASR.");
+        setStatus(text("\u540e\u7aef\u8bed\u97f3\u6a21\u5f0f\uff0c\u8bf7\u5f55\u97f3\u540e\u7b49\u5f85\u8bc6\u522b\u3002", "Backend ASR mode. Recording requires configured backend ASR."));
         startRecording();
     }
 
@@ -280,12 +333,12 @@ public class VoiceInputMethodService extends InputMethodService {
             mediaRecorder.prepare();
             mediaRecorder.start();
             isRecording = true;
-            voiceButton.setText("Stop");
-            setStatus("Backend ASR recording... tap again to stop");
+            voiceButton.setText(text("\u505c\u6b62", "Stop"));
+            setStatus(text("\u5f55\u97f3\u4e2d\uff0c\u518d\u70b9\u4e00\u6b21\u505c\u6b62\u3002", "Recording... tap again to stop."));
             mainHandler.postDelayed(recordingTimeoutRunnable, MAX_RECORDING_MS);
         } catch (Exception exception) {
             cancelRecording();
-            setStatus("Recording failed: " + exception.getClass().getSimpleName());
+            setStatus(text("\u5f55\u97f3\u5931\u8d25\uff1a", "Recording failed: ") + exception.getClass().getSimpleName());
         }
     }
 
@@ -312,7 +365,7 @@ public class VoiceInputMethodService extends InputMethodService {
             mediaRecorder.stop();
         } catch (RuntimeException exception) {
             cancelRecording();
-            setStatus("Recording too short");
+            setStatus(text("\u5f55\u97f3\u592a\u77ed", "Recording too short"));
             return;
         } finally {
             releaseRecorder();
@@ -320,9 +373,9 @@ public class VoiceInputMethodService extends InputMethodService {
 
         isRecording = false;
         mainHandler.removeCallbacks(recordingTimeoutRunnable);
-        voiceButton.setText(R.string.ime_voice);
+        resetVoiceButton();
         if (audioFile == null || !audioFile.exists() || audioFile.length() == 0) {
-            setStatus("No audio recorded");
+            setStatus(text("\u6ca1\u6709\u5f55\u5230\u97f3\u9891", "No audio recorded"));
             return;
         }
         uploadAudioForCorrection(audioFile);
@@ -331,7 +384,7 @@ public class VoiceInputMethodService extends InputMethodService {
     private void uploadAudioForCorrection(File audioFile) {
         isCorrecting = true;
         voiceButton.setEnabled(false);
-        setStatus("Uploading audio...");
+        setStatus(text("\u6b63\u5728\u4e0a\u4f20\u97f3\u9891...", "Uploading audio..."));
 
         String backendUrl = AppSettings.getBackendUrl(this);
         String userId = AppSettings.getUserId(this);
@@ -344,7 +397,7 @@ public class VoiceInputMethodService extends InputMethodService {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
                     showCorrectionResult(response);
-                    setStatus("Review result, then insert. " + shortCorrectionMethod(response));
+                    setStatus(text("\u8bf7\u786e\u8ba4\u7ed3\u679c\u540e\u63d2\u5165\u3002", "Review result, then insert. ") + shortCorrectionMethod(response));
                     deleteRecordingFile(audioFile);
                 });
             }
@@ -354,7 +407,10 @@ public class VoiceInputMethodService extends InputMethodService {
                 mainHandler.post(() -> {
                     isCorrecting = false;
                     voiceButton.setEnabled(true);
-                    setStatus("Backend ASR failed: " + exception.getClass().getSimpleName() + ". Check ASR config and " + backendUrl);
+                    setStatus(text("\u540e\u7aef\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\uff1a", "Backend ASR failed: ")
+                            + exception.getClass().getSimpleName()
+                            + text("\u3002\u8bf7\u68c0\u67e5\u8bed\u97f3\u8bc6\u522b\u914d\u7f6e\u548c ", ". Check ASR config and ")
+                            + backendUrl);
                     deleteRecordingFile(audioFile);
                 });
             }
@@ -364,12 +420,10 @@ public class VoiceInputMethodService extends InputMethodService {
     private void showCorrectionResult(TextCorrectionResponse response) {
         pendingRawText = emptyToString(response.rawText);
         pendingCorrectedText = TextUtils.isEmpty(response.correctedText) ? pendingRawText : response.correctedText;
-        if (rawTextView != null) {
-            rawTextView.setText("Raw: " + pendingRawText);
-        }
-        if (correctedTextView != null) {
-            correctedTextView.setText("Corrected: " + pendingCorrectedText);
-        }
+        isRawExpanded = false;
+        updateRawTextView();
+        updateRawToggleVisibility();
+        updateCorrectedTextView();
         if (correctionMethodView != null) {
             correctionMethodView.setText(correctionMethodText(response));
         }
@@ -381,14 +435,12 @@ public class VoiceInputMethodService extends InputMethodService {
     private void showCorrectionResult(String rawText, String correctedText) {
         pendingRawText = emptyToString(rawText);
         pendingCorrectedText = TextUtils.isEmpty(correctedText) ? pendingRawText : correctedText;
-        if (rawTextView != null) {
-            rawTextView.setText("Raw: " + pendingRawText);
-        }
-        if (correctedTextView != null) {
-            correctedTextView.setText("Corrected: " + pendingCorrectedText);
-        }
+        isRawExpanded = false;
+        updateRawTextView();
+        updateRawToggleVisibility();
+        updateCorrectedTextView();
         if (correctionMethodView != null) {
-            correctionMethodView.setText("Method: correction failed, raw text available");
+            correctionMethodView.setText(text("\u65b9\u6cd5\uff1a\u7ea0\u9519\u5931\u8d25\uff0c\u5df2\u4fdd\u7559\u539f\u6587", "Method: correction failed, raw text available"));
         }
         if (resultPanel != null) {
             resultPanel.setVisibility(View.VISIBLE);
@@ -396,53 +448,54 @@ public class VoiceInputMethodService extends InputMethodService {
     }
 
     private String correctionMethodText(TextCorrectionResponse response) {
-        String text = "Method: " + methodLabel(response.correctionMethod);
+        String text = (isChinese ? "\u65b9\u6cd5\uff1a" : "Method: ") + methodLabel(response.correctionMethod);
         if (response.llmUsed) {
-            text += " (LLM used)";
+            text += isChinese ? "\uff08\u5df2\u4f7f\u7528\u6a21\u578b\uff09" : " (LLM used)";
         } else if (!TextUtils.isEmpty(response.llmError)) {
-            text += " (LLM not used: " + response.llmError + ")";
+            text += (isChinese ? "\uff08\u672a\u4f7f\u7528\u6a21\u578b\uff1a" : " (LLM not used: ") + response.llmError + (isChinese ? "\uff09" : ")");
         } else {
-            text += " (LLM not used)";
+            text += isChinese ? "\uff08\u672a\u4f7f\u7528\u6a21\u578b\uff09" : " (LLM not used)";
         }
         return text;
     }
 
     private String shortCorrectionMethod(TextCorrectionResponse response) {
         if (response.llmUsed) {
-            return "LLM used.";
+            return text("\u5df2\u4f7f\u7528\u6a21\u578b\u3002", "LLM used.");
         }
         if (!TextUtils.isEmpty(response.llmError)) {
-            return "Fallback used: " + response.llmError;
+            return (isChinese ? "\u5df2\u4f7f\u7528\u515c\u5e95\u7ed3\u679c\uff1a" : "Fallback used: ") + response.llmError;
         }
-        return "Method: " + methodLabel(response.correctionMethod);
+        return (isChinese ? "\u65b9\u6cd5\uff1a" : "Method: ") + methodLabel(response.correctionMethod);
     }
 
     private String methodLabel(String method) {
         if ("llm".equals(method)) {
-            return "LLM correction";
+            return isChinese ? "\u6a21\u578b\u7ea0\u9519" : "LLM correction";
         }
         if ("rule_pinyin_fallback".equals(method)) {
-            return "rule/pinyin fallback";
+            return isChinese ? "\u89c4\u5219/\u62fc\u97f3\u515c\u5e95" : "Rule/pinyin fallback";
         }
         if ("raw_text".equals(method)) {
-            return "raw text kept";
+            return isChinese ? "\u4fdd\u7559\u539f\u6587" : "Raw text kept";
         }
-        return TextUtils.isEmpty(method) ? "unknown" : method;
+        return TextUtils.isEmpty(method) ? text("\u672a\u77e5", "unknown") : method;
     }
 
     private void insertPendingText(boolean useCorrectedText) {
         String text = useCorrectedText ? pendingCorrectedText : pendingRawText;
         if (TextUtils.isEmpty(text)) {
-            setStatus("No pending text");
+            setStatus(text("\u6ca1\u6709\u5f85\u63d2\u5165\u6587\u672c", "No pending text"));
             return;
         }
         commitText(text);
-        clearPendingResult("Inserted");
+        clearPendingResult(text("\u5df2\u63d2\u5165", "Inserted"));
     }
 
     private void clearPendingResult(String status) {
         pendingRawText = "";
         pendingCorrectedText = "";
+        isRawExpanded = false;
         if (resultPanel != null) {
             resultPanel.setVisibility(View.GONE);
         }
@@ -455,6 +508,7 @@ public class VoiceInputMethodService extends InputMethodService {
         if (correctionMethodView != null) {
             correctionMethodView.setText("");
         }
+        updateRawToggleVisibility();
         if (status != null) {
             setStatus(status);
         }
@@ -472,6 +526,18 @@ public class VoiceInputMethodService extends InputMethodService {
         if (inputConnection != null) {
             inputConnection.deleteSurroundingText(1, 0);
         }
+    }
+
+    private void startDeleteRepeat() {
+        stopDeleteRepeat();
+        isDeleteRepeating = true;
+        deleteBackward();
+        mainHandler.postDelayed(deleteRepeatRunnable, DELETE_REPEAT_INITIAL_DELAY_MS);
+    }
+
+    private void stopDeleteRepeat() {
+        mainHandler.removeCallbacks(deleteRepeatRunnable);
+        mainHandler.post(() -> isDeleteRepeating = false);
     }
 
     private void sendEnter() {
@@ -527,7 +593,7 @@ public class VoiceInputMethodService extends InputMethodService {
 
     private void resetVoiceButton() {
         if (voiceButton != null) {
-            voiceButton.setText(R.string.ime_voice);
+            voiceButton.setText(text("\u8bed\u97f3", "Voice"));
             voiceButton.setEnabled(!isCorrecting);
         }
     }
@@ -557,25 +623,103 @@ public class VoiceInputMethodService extends InputMethodService {
         }
     }
 
+    private void setLanguage(boolean chinese) {
+        if (isChinese == chinese) {
+            return;
+        }
+        isChinese = chinese;
+        AppSettings.saveLanguage(this, chinese);
+        applyLanguage();
+        if (TextUtils.isEmpty(pendingRawText) && !isRecording && !isListening && !isCorrecting) {
+            setStatus(text("\u5c31\u7eea", "Ready"));
+        }
+    }
+
+    private void applyLanguage() {
+        if (chineseButton != null) {
+            chineseButton.setSelected(isChinese);
+        }
+        if (englishButton != null) {
+            englishButton.setSelected(!isChinese);
+        }
+        if (voiceButton != null) {
+            resetVoiceButton();
+        }
+        if (deleteButton != null) {
+            deleteButton.setText(text("\u5220\u9664", "Delete"));
+        }
+        if (spaceButton != null) {
+            spaceButton.setText(text("\u7a7a\u683c", "Space"));
+        }
+        if (enterButton != null) {
+            enterButton.setText(text("\u56de\u8f66", "Enter"));
+        }
+        if (insertCorrectedButton != null) {
+            insertCorrectedButton.setText(text("\u63d2\u5165\u4fee\u6b63", "Insert Fix"));
+        }
+        if (insertRawButton != null) {
+            insertRawButton.setText(text("\u63d2\u5165\u539f\u6587", "Insert Raw"));
+        }
+        if (cancelButton != null) {
+            cancelButton.setText(text("\u53d6\u6d88", "Cancel"));
+        }
+        updateRawTextView();
+        updateCorrectedTextView();
+        updateRawToggleVisibility();
+    }
+
+    private void toggleRawExpansion() {
+        isRawExpanded = !isRawExpanded;
+        updateRawTextView();
+        updateRawToggleVisibility();
+    }
+
+    private void updateRawTextView() {
+        if (rawTextView == null) {
+            return;
+        }
+        rawTextView.setText((isChinese ? "\u539f\u6587\uff1a" : "Raw: ") + pendingRawText);
+        rawTextView.setMaxLines(isRawExpanded ? 4 : 1);
+        rawTextView.setEllipsize(isRawExpanded ? null : TextUtils.TruncateAt.END);
+    }
+
+    private void updateCorrectedTextView() {
+        if (correctedTextView != null) {
+            correctedTextView.setText((isChinese ? "\u4fee\u6b63\uff1a" : "Corrected: ") + pendingCorrectedText);
+        }
+    }
+
+    private void updateRawToggleVisibility() {
+        if (rawToggleButton == null) {
+            return;
+        }
+        rawToggleButton.setText(isRawExpanded ? text("\u6536\u8d77", "Less") : text("\u5c55\u5f00", "More"));
+        rawToggleButton.setVisibility(TextUtils.isEmpty(pendingRawText) ? View.GONE : View.VISIBLE);
+    }
+
+    private String text(String chinese, String english) {
+        return isChinese ? chinese : english;
+    }
+
     private String speechErrorText(int error) {
         switch (error) {
             case SpeechRecognizer.ERROR_AUDIO:
-                return "audio error";
+                return text("\u97f3\u9891\u9519\u8bef", "audio error");
             case SpeechRecognizer.ERROR_CLIENT:
-                return "client error";
+                return text("\u5ba2\u6237\u7aef\u9519\u8bef", "client error");
             case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-                return "microphone permission denied";
+                return text("\u9ea6\u514b\u98ce\u6743\u9650\u4e0d\u8db3", "microphone permission denied");
             case SpeechRecognizer.ERROR_NETWORK:
             case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
-                return "network error";
+                return text("\u7f51\u7edc\u9519\u8bef", "network error");
             case SpeechRecognizer.ERROR_NO_MATCH:
-                return "no match";
+                return text("\u672a\u8bc6\u522b\u5230\u5185\u5bb9", "no match");
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                return "recognizer busy";
+                return text("\u8bc6\u522b\u670d\u52a1\u5fd9", "recognizer busy");
             case SpeechRecognizer.ERROR_SERVER:
-                return "speech service error";
+                return text("\u8bed\u97f3\u670d\u52a1\u9519\u8bef", "speech service error");
             case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                return "no speech detected";
+                return text("\u6ca1\u6709\u68c0\u6d4b\u5230\u8bed\u97f3", "no speech detected");
             default:
                 return "error " + error;
         }

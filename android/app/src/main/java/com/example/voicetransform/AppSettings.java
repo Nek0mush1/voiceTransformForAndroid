@@ -10,12 +10,16 @@ public final class AppSettings {
     public static final String SPEECH_MODE_SYSTEM = "system";
     public static final String SPEECH_MODE_BACKEND = "backend";
     public static final String DEFAULT_SPEECH_MODE = SPEECH_MODE_BACKEND;
+    public static final String LANGUAGE_ZH = "zh";
+    public static final String LANGUAGE_EN = "en";
+    public static final String DEFAULT_LANGUAGE = LANGUAGE_ZH;
 
     private static final String PREFS_NAME = "voice_transform_settings";
     private static final String KEY_BACKEND_URL = "backend_url";
     private static final String KEY_USER_ID = "user_id";
     private static final String KEY_APP_CONTEXT = "app_context";
     private static final String KEY_SPEECH_MODE = "speech_mode";
+    private static final String KEY_LANGUAGE = "language";
 
     private AppSettings() {
     }
@@ -34,6 +38,21 @@ public final class AppSettings {
 
     public static String getSpeechMode(Context context) {
         return prefs(context).getString(KEY_SPEECH_MODE, DEFAULT_SPEECH_MODE);
+    }
+
+    public static String getLanguage(Context context) {
+        return prefs(context).getString(KEY_LANGUAGE, DEFAULT_LANGUAGE);
+    }
+
+    public static boolean isChinese(Context context) {
+        return LANGUAGE_ZH.equals(getLanguage(context));
+    }
+
+    public static void saveLanguage(Context context, boolean isChinese) {
+        prefs(context)
+                .edit()
+                .putString(KEY_LANGUAGE, isChinese ? LANGUAGE_ZH : LANGUAGE_EN)
+                .apply();
     }
 
     public static void save(Context context, String backendUrl, String userId, String appContext) {

@@ -47,6 +47,21 @@ public class MainActivity extends Activity {
     private static final int SECTION_LOGS = 5;
     private static final String LLM_WIRE_API_RESPONSES = "responses";
     private static final String LLM_WIRE_API_CHAT_COMPLETIONS = "chat_completions";
+    private static final String[] CONTEXT_VALUES = {"chat", "note", "study"};
+    private static final String[] CONTEXT_LABELS_ZH = {"\u804a\u5929", "\u7b14\u8bb0", "\u5b66\u4e60"};
+    private static final String[] CONTEXT_LABELS_EN = {"Chat", "Notes", "Study"};
+    private static final String[] SPEECH_MODE_VALUES = {
+            AppSettings.SPEECH_MODE_SYSTEM,
+            AppSettings.SPEECH_MODE_BACKEND
+    };
+    private static final String[] SPEECH_MODE_LABELS_ZH = {"\u7cfb\u7edf\u8bed\u97f3", "\u540e\u7aef\u8bed\u97f3"};
+    private static final String[] SPEECH_MODE_LABELS_EN = {"System", "Backend"};
+    private static final String[] LLM_WIRE_API_VALUES = {
+            LLM_WIRE_API_RESPONSES,
+            LLM_WIRE_API_CHAT_COMPLETIONS
+    };
+    private static final String[] LLM_WIRE_API_LABELS_ZH = {"\u54cd\u5e94\u63a5\u53e3", "\u804a\u5929\u8865\u5168\u63a5\u53e3"};
+    private static final String[] LLM_WIRE_API_LABELS_EN = {"Responses", "Chat Completions"};
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable recordingTimeoutRunnable = this::stopRecordingAndUpload;
@@ -131,6 +146,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        isChinese = AppSettings.isChinese(this);
 
         bindViews();
         setupSpinners();
@@ -212,49 +228,21 @@ public class MainActivity extends Activity {
     }
 
     private void setupSpinners() {
-        ArrayAdapter<CharSequence> contextAdapter = ArrayAdapter.createFromResource(
-                this,
-                R.array.context_values,
-                android.R.layout.simple_spinner_item
+        refreshSpinnerLabels(
+                AppSettings.DEFAULT_APP_CONTEXT,
+                AppSettings.DEFAULT_SPEECH_MODE,
+                LLM_WIRE_API_RESPONSES
         );
-        contextAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        contextSpinner.setAdapter(contextAdapter);
-
-        ArrayAdapter<CharSequence> speechModeAdapter = ArrayAdapter.createFromResource(
-                this,
-                R.array.speech_mode_values,
-                android.R.layout.simple_spinner_item
-        );
-        speechModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        speechModeSpinner.setAdapter(speechModeAdapter);
-
-        ArrayAdapter<CharSequence> llmWireApiAdapter = ArrayAdapter.createFromResource(
-                this,
-                R.array.llm_wire_api_values,
-                android.R.layout.simple_spinner_item
-        );
-        llmWireApiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        llmWireApiSpinner.setAdapter(llmWireApiAdapter);
-        setSpinnerSelection(llmWireApiSpinner, LLM_WIRE_API_RESPONSES);
     }
 
     private void loadSavedSettings() {
+        isChinese = AppSettings.isChinese(this);
         backendUrlInput.setText(AppSettings.getBackendUrl(this));
         userIdInput.setText(AppSettings.getUserId(this));
         String savedContext = AppSettings.getAppContext(this);
-        for (int i = 0; i < contextSpinner.getCount(); i++) {
-            if (savedContext.equals(contextSpinner.getItemAtPosition(i).toString())) {
-                contextSpinner.setSelection(i);
-                break;
-            }
-        }
+        setSpinnerSelection(contextSpinner, CONTEXT_VALUES, savedContext);
         String savedSpeechMode = AppSettings.getSpeechMode(this);
-        for (int i = 0; i < speechModeSpinner.getCount(); i++) {
-            if (savedSpeechMode.equals(speechModeSpinner.getItemAtPosition(i).toString())) {
-                speechModeSpinner.setSelection(i);
-                break;
-            }
-        }
+        setSpinnerSelection(speechModeSpinner, SPEECH_MODE_VALUES, savedSpeechMode);
         categoryInput.setText("course");
         weightInput.setText("1.0");
     }
@@ -262,10 +250,12 @@ public class MainActivity extends Activity {
     private void setupActions() {
         chineseButton.setOnClickListener(view -> {
             isChinese = true;
+            AppSettings.saveLanguage(this, true);
             applyLanguage();
         });
         englishButton.setOnClickListener(view -> {
             isChinese = false;
+            AppSettings.saveLanguage(this, false);
             applyLanguage();
         });
         testTabButton.setOnClickListener(view -> showSection(SECTION_TEST));
@@ -315,7 +305,7 @@ public class MainActivity extends Activity {
         subtitleText.setText(isChinese
                 ? "\u8f93\u5165\u6216\u8bed\u97f3\u8bc6\u522b\u6587\u672c\uff0c\u8c03\u7528\u540e\u7aef\u8bcd\u5e93\u5b8c\u6210\u7ea0\u9519\u3002"
                 : "Type or dictate text, then call the backend correction API.");
-        userIdLabel.setText(isChinese ? "\u7528\u6237 ID" : "User ID");
+        userIdLabel.setText(isChinese ? "\u7528\u6237\u7f16\u53f7" : "User ID");
         backendUrlLabel.setText(isChinese ? "\u540e\u7aef\u5730\u5740" : "Backend URL");
         backendUrlInput.setHint(isChinese ? "\u4f8b\u5982 http://39.106.51.35:8000" : "Example: http://39.106.51.35:8000");
         contextLabel.setText(isChinese ? "\u5e94\u7528\u573a\u666f" : "App Context");
@@ -325,31 +315,31 @@ public class MainActivity extends Activity {
         settingsTabButton.setText(isChinese ? "\u8bbe\u7f6e" : "Settings");
         profileTabButton.setText(isChinese ? "\u753b\u50cf" : "Profile");
         termsTabButton.setText(isChinese ? "\u8bcd\u5e93" : "Terms");
-        llmTabButton.setText(isChinese ? "LLM" : "LLM");
+        llmTabButton.setText(isChinese ? "\u6a21\u578b" : "LLM");
         logsTabButton.setText(isChinese ? "\u65e5\u5fd7" : "Logs");
-        profileInput.setHint(isChinese ? "\u4f8b\u5982\uff1a\u8ba1\u7b97\u673a\u4e13\u4e1a\uff0c\u5b66\u4e60\u8ba1\u7ec4\u3001Agent \u5f00\u53d1" : "Example: CS student learning computer organization and Agent development");
+        profileInput.setHint(isChinese ? "\u4f8b\u5982\uff1a\u8ba1\u7b97\u673a\u4e13\u4e1a\uff0c\u5b66\u4e60\u8ba1\u7ec4\u3001\u667a\u80fd\u4f53\u5f00\u53d1" : "Example: CS student learning computer organization and Agent development");
         termLabel.setText(isChinese ? "\u4e13\u4e1a\u8bcd\u6761\uff08\u8bcd\u3001\u522b\u540d\u3001\u5206\u7c7b\u3001\u6743\u91cd\uff09" : "Term, aliases, category, weight");
         termInput.setHint(isChinese ? "\u8bcd\uff1a\u8ba1\u7ec4" : "Term: Cache");
         aliasesInput.setHint(isChinese ? "\u522b\u540d\uff0c\u9017\u53f7\u5206\u9694\uff1a\u796d\u7956,\u796d\u7956\u8bfe" : "Aliases, comma separated: cash,\u5feb\u53d6");
-        categoryInput.setHint(isChinese ? "\u5206\u7c7b\uff1acourse" : "Category: course");
+        categoryInput.setHint(isChinese ? "\u5206\u7c7b\uff1a\u8bfe\u7a0b" : "Category: course");
         weightInput.setHint(isChinese ? "\u6743\u91cd\uff1a1.0" : "Weight: 1.0");
-        deleteTermIdInput.setHint(isChinese ? "\u8f93\u5165\u8981\u5220\u9664\u7684 ID" : "Term ID to delete");
+        deleteTermIdInput.setHint(isChinese ? "\u8f93\u5165\u8981\u5220\u9664\u7684\u7f16\u53f7" : "Term ID to delete");
         loadProfileButton.setText(isChinese ? "\u62c9\u53d6\u753b\u50cf" : "Load Profile");
         saveProfileButton.setText(isChinese ? "\u4fdd\u5b58\u753b\u50cf" : "Save Profile");
         addTermButton.setText(isChinese ? "\u65b0\u589e\u8bcd\u6761" : "Add Term");
         refreshTermsButton.setText(isChinese ? "\u5237\u65b0\u8bcd\u5e93" : "Refresh Terms");
-        deleteTermButton.setText(isChinese ? "\u5220\u9664 ID" : "Delete ID");
+        deleteTermButton.setText(isChinese ? "\u5220\u9664\u7f16\u53f7" : "Delete ID");
         diagnoseBackendButton.setText(isChinese ? "\u8bca\u65ad\u540e\u7aef\u8fde\u63a5" : "Diagnose Backend");
-        llmBaseUrlLabel.setText(isChinese ? "LLM \u4e2d\u8f6c\u7ad9\u5730\u5740" : "LLM Gateway URL");
-        llmApiKeyLabel.setText(isChinese ? "LLM API Key" : "LLM API Key");
-        llmModelLabel.setText(isChinese ? "LLM \u6a21\u578b" : "LLM Model");
-        llmWireApiLabel.setText(isChinese ? "LLM \u63a5\u53e3\u683c\u5f0f" : "LLM Wire API");
+        llmBaseUrlLabel.setText(isChinese ? "\u6a21\u578b\u4e2d\u8f6c\u7ad9\u5730\u5740" : "LLM Gateway URL");
+        llmApiKeyLabel.setText(isChinese ? "\u6a21\u578b\u5bc6\u94a5" : "LLM API Key");
+        llmModelLabel.setText(isChinese ? "\u6a21\u578b\u540d\u79f0" : "LLM Model");
+        llmWireApiLabel.setText(isChinese ? "\u63a5\u53e3\u683c\u5f0f" : "LLM Wire API");
         llmBaseUrlInput.setHint(isChinese ? "\u4f8b\u5982 https://api.example.com/v1" : "Example: https://api.example.com/v1");
-        llmApiKeyInput.setHint(isChinese ? "\u7559\u7a7a\u8868\u793a\u4e0d\u8986\u76d6\u5df2\u4fdd\u5b58 Key" : "Leave empty to keep saved key");
+        llmApiKeyInput.setHint(isChinese ? "\u7559\u7a7a\u8868\u793a\u4e0d\u8986\u76d6\u5df2\u4fdd\u5b58\u5bc6\u94a5" : "Leave empty to keep saved key");
         llmModelInput.setHint(isChinese ? "\u4f8b\u5982 gpt-5.5 / deepseek-chat" : "Example: gpt-5.5 / deepseek-chat");
         loadLlmButton.setText(isChinese ? "\u62c9\u53d6\u914d\u7f6e" : "Load Config");
         saveLlmButton.setText(isChinese ? "\u4fdd\u5b58\u914d\u7f6e" : "Save Config");
-        testLlmButton.setText(isChinese ? "\u6d4b\u8bd5 LLM \u8fde\u63a5" : "Test LLM Connection");
+        testLlmButton.setText(isChinese ? "\u6d4b\u8bd5\u6a21\u578b\u8fde\u63a5" : "Test LLM Connection");
         rawTextLabel.setText(isChinese ? "\u539f\u59cb\u6587\u672c" : "Raw Text");
         rawTextInput.setHint(isChinese ? "\u8f93\u5165\u8bed\u97f3\u8bc6\u522b\u540e\u7684\u6587\u672c" : "Enter recognized speech text");
         voiceButton.setText(isRecording
@@ -362,44 +352,46 @@ public class MainActivity extends Activity {
         matchedTermsLabel.setText(isChinese ? "\u547d\u4e2d\u672f\u8bed" : "Matched Terms");
         correctionMethodLabel.setText(isChinese ? "\u672c\u6b21\u65b9\u6cd5" : "Correction Method");
         reasonLabel.setText(isChinese ? "\u539f\u56e0" : "Reason");
-        refreshLlmLogsButton.setText(isChinese ? "\u5237\u65b0 LLM \u8c03\u7528\u65e5\u5fd7" : "Refresh LLM Call Logs");
+        refreshLlmLogsButton.setText(isChinese ? "\u5237\u65b0\u6a21\u578b\u8c03\u7528\u65e5\u5fd7" : "Refresh LLM Call Logs");
         endpointHint.setText(isChinese
-                ? "\u9ed8\u8ba4\u4f7f\u7528\u4e91\u7aef\u670d\u52a1\u5668 http://39.106.51.35:8000\u3002Speech Mode=system \u4f7f\u7528\u624b\u673a\u7cfb\u7edf\u8bed\u97f3\uff1bbackend \u4f7f\u7528\u670d\u52a1\u5668\u4e0a\u7684\u767e\u5ea6\u4e91\u77ed\u8bed\u97f3\u8bc6\u522b ASR\u3002"
+                ? "\u9ed8\u8ba4\u4f7f\u7528\u4e91\u7aef\u670d\u52a1\u5668 http://39.106.51.35:8000\u3002\u8bed\u97f3\u6a21\u5f0f\u4e3a\u7cfb\u7edf\u8bed\u97f3\u65f6\u4f7f\u7528\u624b\u673a\u8bc6\u522b\uff1b\u4e3a\u540e\u7aef\u8bed\u97f3\u65f6\u4f7f\u7528\u670d\u52a1\u5668\u8bc6\u522b\u3002"
                 : "Default cloud backend is http://39.106.51.35:8000. Speech Mode=system uses phone speech recognition; backend uses Baidu short speech ASR on the server.");
         chineseButton.setSelected(isChinese);
         englishButton.setSelected(!isChinese);
+        refreshSpinnerLabels(getSelectedContext(), getSelectedSpeechMode(), getSelectedLlmWireApi());
 
-        if (TextUtils.isEmpty(termsValue.getText())) {
-            termsValue.setText(isChinese ? "\u70b9\u51fb\u5237\u65b0\u8bcd\u5e93" : "Tap Refresh Terms");
-        }
-        if (TextUtils.isEmpty(correctedTextValue.getText())) {
-            correctedTextValue.setText(isChinese ? "\u7b49\u5f85\u7ea0\u9519\u7ed3\u679c" : "Waiting for correction result");
-        }
+        setPlaceholderText(termsValue, "\u70b9\u51fb\u5237\u65b0\u8bcd\u5e93", "Tap Refresh Terms");
+        setPlaceholderText(correctedTextValue, "\u7b49\u5f85\u7ea0\u9519\u7ed3\u679c", "Waiting for correction result");
         if (TextUtils.isEmpty(matchedTermsValue.getText())) {
             matchedTermsValue.setText("-");
         }
-        if (TextUtils.isEmpty(correctionMethodValue.getText())) {
-            correctionMethodValue.setText(isChinese ? "\u7b49\u5f85\u7ea0\u9519" : "Waiting for correction");
-        }
-        if (TextUtils.isEmpty(reasonValue.getText())) {
-            reasonValue.setText(isChinese ? "\u63d0\u4ea4\u540e\u663e\u793a\u539f\u56e0" : "Reason appears after submit");
-        }
-        if (TextUtils.isEmpty(backendDiagnosticValue.getText())) {
-            backendDiagnosticValue.setText(isChinese
-                    ? "\u70b9\u51fb\u8bca\u65ad\u540e\u7aef\u8fde\u63a5\uff0c\u533a\u5206\u7f51\u7edc\u3001ASR \u548c LLM \u914d\u7f6e\u95ee\u9898\u3002"
-                    : "Tap Diagnose Backend to separate network, ASR, and LLM config issues.");
-        }
-        if (TextUtils.isEmpty(llmStatusValue.getText())) {
-            llmStatusValue.setText(isChinese
-                    ? "\u586b\u5199\u4e2d\u8f6c\u7ad9 /v1 \u5730\u5740\u3001API Key \u548c\u6a21\u578b\u540e\u4fdd\u5b58\u3002"
-                    : "Enter gateway /v1 URL, API key, and model, then save.");
-        }
-        if (TextUtils.isEmpty(llmLogsValue.getText())) {
-            llmLogsValue.setText(isChinese
-                    ? "\u70b9\u51fb\u5237\u65b0\uff0c\u67e5\u770b\u6700\u8fd1 50 \u6761\u7ea0\u9519\u65f6\u7684 LLM \u8c03\u7528\u8bb0\u5f55\u3002"
-                    : "Tap refresh to view the latest 50 LLM calls from correction requests.");
-        }
+        setPlaceholderText(correctionMethodValue, "\u7b49\u5f85\u7ea0\u9519", "Waiting for correction");
+        setPlaceholderText(reasonValue, "\u63d0\u4ea4\u540e\u663e\u793a\u539f\u56e0", "Reason appears after submit");
+        setPlaceholderText(
+                backendDiagnosticValue,
+                "\u70b9\u51fb\u8bca\u65ad\u540e\u7aef\u8fde\u63a5\uff0c\u533a\u5206\u7f51\u7edc\u3001\u8bed\u97f3\u8bc6\u522b\u548c\u6a21\u578b\u914d\u7f6e\u95ee\u9898\u3002",
+                "Tap Diagnose Backend to separate network, ASR, and LLM config issues."
+        );
+        setPlaceholderText(
+                llmStatusValue,
+                "\u586b\u5199\u4e2d\u8f6c\u7ad9 /v1 \u5730\u5740\u3001\u5bc6\u94a5\u548c\u6a21\u578b\u540e\u4fdd\u5b58\u3002",
+                "Enter gateway /v1 URL, API key, and model, then save."
+        );
+        setPlaceholderText(
+                llmLogsValue,
+                "\u70b9\u51fb\u5237\u65b0\uff0c\u67e5\u770b\u6700\u8fd1 50 \u6761\u7ea0\u9519\u65f6\u7684\u6a21\u578b\u8c03\u7528\u8bb0\u5f55\u3002",
+                "Tap refresh to view the latest 50 LLM calls from correction requests."
+        );
         updateSectionVisibility();
+    }
+
+    private void setPlaceholderText(TextView view, String chinese, String english) {
+        CharSequence current = view.getText();
+        if (TextUtils.isEmpty(current)
+                || chinese.contentEquals(current)
+                || english.contentEquals(current)) {
+            view.setText(isChinese ? chinese : english);
+        }
     }
 
     private void toggleVoiceRecording() {
@@ -430,7 +422,7 @@ public class MainActivity extends Activity {
     private void startSystemSpeechRecognition() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             reasonValue.setText(isChinese
-                    ? "\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\u4e0d\u53ef\u7528\u3002\u82e5\u8981\u7528\u540e\u7aef ASR\uff0c\u8bf7\u5148\u914d\u7f6e\u540e\u7aef ASR\u3002"
+                    ? "\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\u4e0d\u53ef\u7528\u3002\u82e5\u8981\u7528\u540e\u7aef\u8bed\u97f3\uff0c\u8bf7\u5148\u914d\u7f6e\u540e\u7aef\u8bc6\u522b\u670d\u52a1\u3002"
                     : "System speech recognition is unavailable. Configure backend ASR before using backend mode.");
             return;
         }
@@ -600,7 +592,7 @@ public class MainActivity extends Activity {
     private void uploadAudioForCorrection(File audioFile) {
         String userId = userIdInput.getText().toString().trim();
         String backendUrl = backendUrlInput.getText().toString().trim();
-        String context = contextSpinner.getSelectedItem().toString();
+        String context = getSelectedContext();
 
         if (TextUtils.isEmpty(backendUrl)) {
             backendUrlInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u540e\u7aef\u5730\u5740" : "Backend URL is required");
@@ -608,7 +600,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (TextUtils.isEmpty(userId)) {
-            userIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7528\u6237 ID" : "User ID is required");
+            userIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7528\u6237\u7f16\u53f7" : "User ID is required");
             deleteRecordingFile(audioFile);
             return;
         }
@@ -633,8 +625,8 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     setLoading(false);
                     String message = isChinese
-                            ? "\u540e\u7aef ASR \u5931\u8d25\uff1a" + formatException(exception)
-                            + "\n\u8bf7\u786e\u8ba4 Speech Mode=backend \u65f6\u5df2\u914d\u7f6e ASR\uff0c\u4e14\u624b\u673a\u80fd\u8bbf\u95ee\uff1a" + backendUrl
+                            ? "\u540e\u7aef\u8bed\u97f3\u5931\u8d25\uff1a" + formatException(exception)
+                            + "\n\u8bf7\u786e\u8ba4\u540e\u7aef\u8bed\u97f3\u6a21\u5f0f\u5df2\u914d\u7f6e\u8bc6\u522b\u670d\u52a1\uff0c\u4e14\u624b\u673a\u80fd\u8bbf\u95ee\uff1a" + backendUrl
                             : "Backend ASR failed: " + formatException(exception)
                             + "\nConfirm backend ASR is configured and the phone can reach: " + backendUrl;
                     reasonValue.setText(message);
@@ -777,7 +769,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (TextUtils.isEmpty(idText)) {
-            deleteTermIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165 ID" : "ID is required");
+            deleteTermIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7f16\u53f7" : "ID is required");
             return;
         }
 
@@ -785,7 +777,7 @@ public class MainActivity extends Activity {
         try {
             termId = Integer.parseInt(idText);
         } catch (NumberFormatException exception) {
-            deleteTermIdInput.setError(isChinese ? "ID \u5fc5\u987b\u662f\u6570\u5b57" : "ID must be a number");
+            deleteTermIdInput.setError(isChinese ? "\u7f16\u53f7\u5fc5\u987b\u662f\u6570\u5b57" : "ID must be a number");
             return;
         }
 
@@ -812,7 +804,7 @@ public class MainActivity extends Activity {
         String userId = userIdInput.getText().toString().trim();
         String backendUrl = backendUrlInput.getText().toString().trim();
         String rawText = rawTextInput.getText().toString().trim();
-        String context = contextSpinner.getSelectedItem().toString();
+        String context = getSelectedContext();
 
         if (!validateBackendAndUser(backendUrl, userId)) {
             return;
@@ -897,7 +889,7 @@ public class MainActivity extends Activity {
                     setLoading(false);
                     llmBaseUrlInput.setText(response.baseUrl);
                     llmModelInput.setText(response.model);
-                    setSpinnerSelection(llmWireApiSpinner, normalizeWireApi(response.wireApi));
+                    setSpinnerSelection(llmWireApiSpinner, LLM_WIRE_API_VALUES, normalizeWireApi(response.wireApi));
                     llmApiKeyInput.setText("");
                     llmStatusValue.setText(formatLlmStatus(response));
                 });
@@ -905,7 +897,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onError(Exception exception) {
-                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u62c9\u53d6 LLM \u914d\u7f6e\u5931\u8d25" : "Load LLM config failed", backendUrl, exception));
+                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u62c9\u53d6\u6a21\u578b\u914d\u7f6e\u5931\u8d25" : "Load LLM config failed", backendUrl, exception));
             }
         });
     }
@@ -921,7 +913,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (TextUtils.isEmpty(llmBaseUrl)) {
-            llmBaseUrlInput.setError(isChinese ? "\u8bf7\u8f93\u5165 LLM \u5730\u5740" : "LLM URL is required");
+            llmBaseUrlInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u6a21\u578b\u5730\u5740" : "LLM URL is required");
             return;
         }
         if (TextUtils.isEmpty(model)) {
@@ -936,15 +928,15 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     setLoading(false);
                     llmApiKeyInput.setText("");
-                    setSpinnerSelection(llmWireApiSpinner, normalizeWireApi(response.wireApi));
+                    setSpinnerSelection(llmWireApiSpinner, LLM_WIRE_API_VALUES, normalizeWireApi(response.wireApi));
                     llmStatusValue.setText(formatLlmStatus(response));
-                    Toast.makeText(MainActivity.this, isChinese ? "LLM \u914d\u7f6e\u5df2\u4fdd\u5b58" : "LLM config saved", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, isChinese ? "\u6a21\u578b\u914d\u7f6e\u5df2\u4fdd\u5b58" : "LLM config saved", Toast.LENGTH_LONG).show();
                 });
             }
 
             @Override
             public void onError(Exception exception) {
-                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u4fdd\u5b58 LLM \u914d\u7f6e\u5931\u8d25" : "Save LLM config failed", backendUrl, exception));
+                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u4fdd\u5b58\u6a21\u578b\u914d\u7f6e\u5931\u8d25" : "Save LLM config failed", backendUrl, exception));
             }
         });
     }
@@ -957,7 +949,7 @@ public class MainActivity extends Activity {
         }
         saveCurrentSettings();
         setLoading(true);
-        llmStatusValue.setText(isChinese ? "\u6b63\u5728\u6d4b\u8bd5 LLM \u8fde\u63a5..." : "Testing LLM connection...");
+        llmStatusValue.setText(isChinese ? "\u6b63\u5728\u6d4b\u8bd5\u6a21\u578b\u8fde\u63a5..." : "Testing LLM connection...");
         new CorrectionApiClient(backendUrl).testLlmConfig(new CorrectionApiClient.LlmConfigTestCallback() {
             @Override
             public void onSuccess(LlmConfigTestResponse response) {
@@ -969,7 +961,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onError(Exception exception) {
-                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u6d4b\u8bd5 LLM \u8fde\u63a5\u5931\u8d25" : "Test LLM connection failed", backendUrl, exception));
+                runOnUiThread(() -> showLlmRequestError(isChinese ? "\u6d4b\u8bd5\u6a21\u578b\u8fde\u63a5\u5931\u8d25" : "Test LLM connection failed", backendUrl, exception));
             }
         });
     }
@@ -982,7 +974,7 @@ public class MainActivity extends Activity {
         }
         saveCurrentSettings();
         setLoading(true);
-        llmLogsValue.setText(isChinese ? "\u6b63\u5728\u62c9\u53d6 LLM \u8c03\u7528\u65e5\u5fd7..." : "Loading LLM call logs...");
+        llmLogsValue.setText(isChinese ? "\u6b63\u5728\u62c9\u53d6\u6a21\u578b\u8c03\u7528\u65e5\u5fd7..." : "Loading LLM call logs...");
         new CorrectionApiClient(backendUrl).listLlmCallLogs(new CorrectionApiClient.LlmCallLogsCallback() {
             @Override
             public void onSuccess(List<LlmCallLogResponse> response) {
@@ -996,7 +988,7 @@ public class MainActivity extends Activity {
             public void onError(Exception exception) {
                 runOnUiThread(() -> {
                     setLoading(false);
-                    String message = (isChinese ? "\u62c9\u53d6 LLM \u65e5\u5fd7\u5931\u8d25\uff1a" : "Load LLM logs failed: ")
+                    String message = (isChinese ? "\u62c9\u53d6\u6a21\u578b\u65e5\u5fd7\u5931\u8d25\uff1a" : "Load LLM logs failed: ")
                             + formatException(exception)
                             + "\n" + backendUrl;
                     llmLogsValue.setText(message);
@@ -1091,7 +1083,7 @@ public class MainActivity extends Activity {
     private void saveCurrentSettings() {
         String context = contextSpinner.getSelectedItem() == null
                 ? AppSettings.DEFAULT_APP_CONTEXT
-                : contextSpinner.getSelectedItem().toString();
+                : getSelectedContext();
         AppSettings.save(
                 this,
                 backendUrlInput.getText().toString(),
@@ -1099,12 +1091,23 @@ public class MainActivity extends Activity {
                 context,
                 getSelectedSpeechMode()
         );
+        AppSettings.saveLanguage(this, isChinese);
     }
 
     private String getSelectedSpeechMode() {
-        return speechModeSpinner.getSelectedItem() == null
-                ? AppSettings.DEFAULT_SPEECH_MODE
-                : speechModeSpinner.getSelectedItem().toString();
+        int position = speechModeSpinner.getSelectedItemPosition();
+        if (position >= 0 && position < SPEECH_MODE_VALUES.length) {
+            return SPEECH_MODE_VALUES[position];
+        }
+        return AppSettings.DEFAULT_SPEECH_MODE;
+    }
+
+    private String getSelectedContext() {
+        int position = contextSpinner.getSelectedItemPosition();
+        if (position >= 0 && position < CONTEXT_VALUES.length) {
+            return CONTEXT_VALUES[position];
+        }
+        return AppSettings.DEFAULT_APP_CONTEXT;
     }
 
     private boolean validateBackendAndUser(String backendUrl, String userId) {
@@ -1112,7 +1115,7 @@ public class MainActivity extends Activity {
             return false;
         }
         if (TextUtils.isEmpty(userId)) {
-            userIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7528\u6237 ID" : "User ID is required");
+            userIdInput.setError(isChinese ? "\u8bf7\u8f93\u5165\u7528\u6237\u7f16\u53f7" : "User ID is required");
             return false;
         }
         return true;
@@ -1190,15 +1193,19 @@ public class MainActivity extends Activity {
                 builder.append("  [").append(term.category).append(']');
             }
             if (!term.aliases.isEmpty()) {
-                builder.append("  aliases: ").append(TextUtils.join(", ", term.aliases));
+                builder.append(isChinese ? "  \u522b\u540d\uff1a" : "  aliases: ")
+                        .append(TextUtils.join(", ", term.aliases));
             }
         }
         return builder.toString();
     }
 
     private String getSelectedLlmWireApi() {
-        Object selected = llmWireApiSpinner.getSelectedItem();
-        return normalizeWireApi(selected == null ? LLM_WIRE_API_RESPONSES : selected.toString());
+        int position = llmWireApiSpinner.getSelectedItemPosition();
+        if (position >= 0 && position < LLM_WIRE_API_VALUES.length) {
+            return LLM_WIRE_API_VALUES[position];
+        }
+        return LLM_WIRE_API_RESPONSES;
     }
 
     private String normalizeWireApi(String wireApi) {
@@ -1208,12 +1215,41 @@ public class MainActivity extends Activity {
         return LLM_WIRE_API_RESPONSES;
     }
 
-    private void setSpinnerSelection(Spinner spinner, String value) {
+    private String wireApiLabel(String wireApi) {
+        String normalized = normalizeWireApi(wireApi);
+        for (int i = 0; i < LLM_WIRE_API_VALUES.length; i++) {
+            if (LLM_WIRE_API_VALUES[i].equals(normalized)) {
+                return isChinese ? LLM_WIRE_API_LABELS_ZH[i] : LLM_WIRE_API_LABELS_EN[i];
+            }
+        }
+        return emptyToDash(wireApi);
+    }
+
+    private void refreshSpinnerLabels(String selectedContext, String selectedSpeechMode, String selectedWireApi) {
+        setSpinnerAdapter(contextSpinner, isChinese ? CONTEXT_LABELS_ZH : CONTEXT_LABELS_EN);
+        setSpinnerAdapter(speechModeSpinner, isChinese ? SPEECH_MODE_LABELS_ZH : SPEECH_MODE_LABELS_EN);
+        setSpinnerAdapter(llmWireApiSpinner, isChinese ? LLM_WIRE_API_LABELS_ZH : LLM_WIRE_API_LABELS_EN);
+        setSpinnerSelection(contextSpinner, CONTEXT_VALUES, selectedContext);
+        setSpinnerSelection(speechModeSpinner, SPEECH_MODE_VALUES, selectedSpeechMode);
+        setSpinnerSelection(llmWireApiSpinner, LLM_WIRE_API_VALUES, normalizeWireApi(selectedWireApi));
+    }
+
+    private void setSpinnerAdapter(Spinner spinner, String[] labels) {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                labels
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+    }
+
+    private void setSpinnerSelection(Spinner spinner, String[] values, String value) {
         if (spinner == null || value == null) {
             return;
         }
-        for (int i = 0; i < spinner.getCount(); i++) {
-            if (value.equals(spinner.getItemAtPosition(i).toString())) {
+        for (int i = 0; i < values.length; i++) {
+            if (value.equals(values[i])) {
                 spinner.setSelection(i);
                 return;
             }
@@ -1231,12 +1267,12 @@ public class MainActivity extends Activity {
                 ? "-"
                 : response.updatedAt;
         if (isChinese) {
-            return "\u72b6\u6001: " + configuredText
-                    + "\n\u5730\u5740: " + emptyToDash(response.baseUrl)
-                    + "\n\u6a21\u578b: " + emptyToDash(response.model)
-                    + "\n\u63a5\u53e3: " + emptyToDash(response.wireApi)
-                    + "\nKey: " + keyText
-                    + "\n\u66f4\u65b0\u65f6\u95f4: " + updatedText;
+            return "\u72b6\u6001\uff1a" + configuredText
+                    + "\n\u5730\u5740\uff1a" + emptyToDash(response.baseUrl)
+                    + "\n\u6a21\u578b\uff1a" + emptyToDash(response.model)
+                    + "\n\u63a5\u53e3\uff1a" + wireApiLabel(response.wireApi)
+                    + "\n\u5bc6\u94a5\uff1a" + keyText
+                    + "\n\u66f4\u65b0\u65f6\u95f4\uff1a" + updatedText;
         }
         return "Status: " + configuredText
                 + "\nURL: " + emptyToDash(response.baseUrl)
@@ -1252,7 +1288,7 @@ public class MainActivity extends Activity {
                 : (isChinese ? "\u6d4b\u8bd5\u5931\u8d25" : "Test failed");
         String output = TextUtils.isEmpty(response.sampleOutput) ? "-" : response.sampleOutput;
         if (isChinese) {
-            return status + "\n\u6d88\u606f: " + response.message + "\n\u8f93\u51fa: " + output;
+            return status + "\n\u6d88\u606f\uff1a" + response.message + "\n\u8f93\u51fa\uff1a" + output;
         }
         return status + "\nMessage: " + response.message + "\nOutput: " + output;
     }
@@ -1261,16 +1297,16 @@ public class MainActivity extends Activity {
         String methodText = methodLabel(response.correctionMethod);
         StringBuilder builder = new StringBuilder();
         if (response.llmUsed) {
-            builder.append(isChinese ? "LLM \u5df2\u8c03\u7528\u5e76\u7528\u4e8e\u672c\u6b21\u7ed3\u679c" : "LLM was called and used for this result");
+            builder.append(isChinese ? "\u6a21\u578b\u5df2\u8c03\u7528\u5e76\u7528\u4e8e\u672c\u6b21\u7ed3\u679c" : "LLM was called and used for this result");
         } else {
-            builder.append(isChinese ? "\u672c\u6b21\u672a\u4f7f\u7528 LLM \u7ed3\u679c" : "LLM result was not used this time");
+            builder.append(isChinese ? "\u672c\u6b21\u672a\u4f7f\u7528\u6a21\u578b\u7ed3\u679c" : "LLM result was not used this time");
         }
-        builder.append("\n").append(isChinese ? "\u65b9\u6cd5: " : "Method: ").append(methodText);
+        builder.append("\n").append(isChinese ? "\u65b9\u6cd5\uff1a" : "Method: ").append(methodText);
         if (!TextUtils.isEmpty(response.llmError)) {
-            builder.append("\n").append(isChinese ? "LLM \u9519\u8bef: " : "LLM error: ").append(response.llmError);
+            builder.append("\n").append(isChinese ? "\u6a21\u578b\u9519\u8bef\uff1a" : "LLM error: ").append(response.llmError);
         }
         if (!TextUtils.isEmpty(response.traceId)) {
-            builder.append("\ntrace_id: ").append(response.traceId);
+            builder.append(isChinese ? "\n\u8ffd\u8e2a\u7f16\u53f7\uff1a" : "\ntrace_id: ").append(response.traceId);
         }
         return builder.toString();
     }
@@ -1278,7 +1314,7 @@ public class MainActivity extends Activity {
     private String formatLlmCallLogs(List<LlmCallLogResponse> logs) {
         if (logs.isEmpty()) {
             return isChinese
-                    ? "\u6682\u65e0 LLM \u8c03\u7528\u65e5\u5fd7\u3002\u63d0\u4ea4\u4e00\u6b21\u7ea0\u9519\u540e\u518d\u5237\u65b0\u3002"
+                    ? "\u6682\u65e0\u6a21\u578b\u8c03\u7528\u65e5\u5fd7\u3002\u63d0\u4ea4\u4e00\u6b21\u7ea0\u9519\u540e\u518d\u5237\u65b0\u3002"
                     : "No LLM call logs yet. Submit a correction, then refresh.";
         }
         StringBuilder builder = new StringBuilder();
@@ -1293,16 +1329,16 @@ public class MainActivity extends Activity {
                     .append(methodLabel(log.correctionMethod));
             builder.append("\n").append(log.createdAt)
                     .append("  ").append(log.durationMs).append("ms");
-            builder.append("\nmodel: ").append(emptyToDash(log.model))
-                    .append("  wire: ").append(emptyToDash(log.wireApi));
-            builder.append("\nraw: ").append(shorten(log.rawText, 80));
-            builder.append("\nfallback: ").append(shorten(log.fallbackText, 80));
-            builder.append("\noutput: ").append(shorten(log.outputText, 80));
+            builder.append(isChinese ? "\n\u6a21\u578b\uff1a" : "\nmodel: ").append(emptyToDash(log.model))
+                    .append(isChinese ? "  \u63a5\u53e3\uff1a" : "  wire: ").append(isChinese ? wireApiLabel(log.wireApi) : emptyToDash(log.wireApi));
+            builder.append(isChinese ? "\n\u539f\u6587\uff1a" : "\nraw: ").append(shorten(log.rawText, 80));
+            builder.append(isChinese ? "\n\u515c\u5e95\u7ed3\u679c\uff1a" : "\nfallback: ").append(shorten(log.fallbackText, 80));
+            builder.append(isChinese ? "\n\u8f93\u51fa\uff1a" : "\noutput: ").append(shorten(log.outputText, 80));
             if (!TextUtils.isEmpty(log.error)) {
-                builder.append("\nerror: ").append(shorten(log.error, 120));
+                builder.append(isChinese ? "\n\u9519\u8bef\uff1a" : "\nerror: ").append(shorten(log.error, 120));
             }
             if (!TextUtils.isEmpty(log.traceId)) {
-                builder.append("\ntrace_id: ").append(log.traceId);
+                builder.append(isChinese ? "\n\u8ffd\u8e2a\u7f16\u53f7\uff1a" : "\ntrace_id: ").append(log.traceId);
             }
         }
         return builder.toString();
@@ -1310,10 +1346,10 @@ public class MainActivity extends Activity {
 
     private String methodLabel(String method) {
         if ("llm".equals(method)) {
-            return isChinese ? "LLM \u7ea0\u9519" : "LLM correction";
+            return isChinese ? "\u6a21\u578b\u7ea0\u9519" : "LLM correction";
         }
         if ("rule_pinyin_fallback".equals(method)) {
-            return isChinese ? "\u89c4\u5219/\u62fc\u97f3 fallback" : "Rule/pinyin fallback";
+            return isChinese ? "\u89c4\u5219/\u62fc\u97f3\u515c\u5e95" : "Rule/pinyin fallback";
         }
         if ("raw_text".equals(method)) {
             return isChinese ? "\u4fdd\u7559\u539f\u6587" : "Raw text kept";
