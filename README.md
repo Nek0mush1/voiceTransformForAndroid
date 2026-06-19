@@ -1,87 +1,131 @@
 # Voice Transform for Android
 
-一个面向 Android 输入场景的上下文感知语音纠错输入法 MVP。
+Voice Transform 是一个 Android 语音输入纠错项目。它关注的不是聊天，而是输入法场景：用户在手机上说完一句话后，系统根据个人背景、专业词库和上下文，把语音识别结果中明显不合适的同音词修正掉，再由用户确认是否上屏。
 
-这个项目的目标不是做一个普通聊天机器人，而是解决手机语音输入里常见的专业词、课程名、技术词被识别成同音错字的问题。例如用户说“今天上午上了两节计组课”，普通语音输入可能识别成“祭祖课”。本项目希望在语音输入后，根据用户画像、个人词库、拼音/同音候选和可选 LLM，对识别文本进行二次纠错，再由用户确认后插入到当前 App 的输入框中。
-
-## 项目用途
-
-Voice Transform 可以作为一个“上下文感知纠错 Agent”：
-
-- 在 Android 任意输入框中通过自定义输入法进行语音输入。
-- 获取原始 ASR 文本后，发送到后端进行纠错。
-- 后端结合用户画像、专业术语库、拼音/同音候选和 LLM 进行判断。
-- 返回纠错文本、命中术语、纠错原因、调用链路和 LLM 调用状态。
-- 用户在输入法面板中确认后，再插入纠错文本或保留原文。
-
-适合的使用场景包括：
-
-- 课程、专业术语较多的学习笔记和聊天输入。
-- 计算机、AI、工程等领域的语音转文字纠错。
-- 用作 Agent 项目的 MVP 展示：观察输入、检索记忆、调用工具、给出行动结果并保留 trace。
-
-## 核心思路
-
-普通 ASR 只根据声音做识别，缺少用户长期上下文。本项目把“语音识别结果”当作待纠错文本，再引入上下文信息进行二次判断。
-
-后端纠错流程大致如下：
+项目的典型问题是：
 
 ```text
-原始语音识别文本
-        |
-        v
-读取用户画像 + 个人术语库
-        |
-        v
-拼音/同音/别名规则候选纠错
-        |
-        v
-可选 LLM 约束式改写
-        |
-        v
-返回纠错文本 + 纠错方法 + trace/debug 信息
+今天上午上了两节祭祖课
 ```
 
-LLM 不是强依赖。即使 LLM 未配置、调用失败或返回空结果，后端也会回退到规则/拼音纠错结果，保证输入法仍然可用。
+在计算机专业学生的使用场景下，这句话更可能是：
 
-## 当前功能
+```text
+今天上午上了两节计组课
+```
 
-- Android 自定义输入法 `InputMethodService`
-- Android App 配置页和测试页
-- 系统语音识别模式：`SpeechRecognizer -> /api/v1/correct-text`
-- 可选后端 ASR 上传模式：`/api/v1/correct-audio`
-- FastAPI 后端纠错接口
-- SQLite 用户画像和个人术语库
-- 拼音、同音、别名 fallback 纠错
-- 可配置 OpenAI-compatible LLM relay
-- 支持 `chat_completions` 和 `responses` 两种 LLM wire API
-- LLM 调用日志页面，最近 50 条
-- 输入法和 App 内展示本次纠错方法：LLM、规则/拼音 fallback 或保留原文
-- Agent trace/debug 接口，便于演示和排查
+## 下载和使用
+
+已发布的 APK 在 GitHub Releases：
+
+[https://github.com/Nek0mush1/voiceTransformForAndroid/releases](https://github.com/Nek0mush1/voiceTransformForAndroid/releases)
+
+| 版本              | 分支                 | 说明                                           |
+| ----------------- | -------------------- | ---------------------------------------------- |
+| Original IME v1.0 | `main`               | 第一版输入法，重点验证语音识别和后端纠错闭环   |
+| Trime IME v1.5    | `combine-with-Trime` | 结合 Trime/Rime 的完整输入法版本，推荐安装体验 |
+
+Release APK 默认连接已经部署好的云端后端：
+
+```text
+http://39.106.51.35:8000
+```
+
+因此，普通使用者下载 APK 后不需要自己部署后端。只要云端服务在线，输入法就可以把识别结果发送到后端做纠错。
+
+需要注意的是，后端 ASR 依赖服务器侧配置。如果使用的是“录音上传到后端识别”的模式，云端服务器必须已经配置好 ASR 服务；如果服务器没有配置 ASR，语音录音上传模式不能正常转文字。Original IME 也支持使用手机系统语音识别，再把识别出的文本交给后端纠错，这种模式不依赖服务器 ASR。
+
+## 设计初衷
+
+通用语音识别通常不了解用户是谁，也不知道用户最近在学什么、常用哪些专业词。对计算机、工程、医学、法律等领域用户来说，很多词听起来相近，但含义完全不同。
+
+这个项目希望把语音输入拆成两步：
+
+1. 先用 ASR 得到原始文本。
+2. 再用用户画像、个人词库、拼音/同音规则和可选 LLM 做二次纠错。
+
+这样输入法不需要替代底层语音识别，也能在专业词和个人常用词上补一层上下文判断。
+
+## 主要功能
+
+- Android 输入法客户端，可在任意文本输入框中使用。
+- Trime/Rime 版本支持更完整的中文拼音输入体验。
+- 后端提供文本纠错接口：`POST /api/v1/correct-text`。
+- 支持用户画像和个人专业词库。
+- 支持拼音、同音、别名规则纠错。
+- 可选接入 OpenAI-compatible LLM relay。
+- LLM 不可用时回退到本地规则纠错。
+- 每次纠错保留 trace，方便查看命中的词、纠错原因和工具调用过程。
+
+## Agent 思路
+
+这里的 Agent 不是一个独立聊天窗口，而是嵌在输入法流程里的纠错模块。
+
+```text
+语音识别文本
+  -> 读取用户画像和专业词库
+  -> 根据拼音、同音和别名生成候选修正
+  -> 可选调用 LLM 做约束式改写
+  -> 返回修正文本、原因和 trace
+  -> 用户确认后插入当前输入框
+```
+
+后端工具链路：
+
+```text
+MemoryTool -> PinyinCorrectorTool -> LLMRewriteTool
+```
+
+其中：
+
+- `MemoryTool` 读取用户画像和词库。
+- `PinyinCorrectorTool` 处理专业词、同音词和别名匹配。
+- `LLMRewriteTool` 在配置 LLM 时做保守改写，只修正明显错误。
 
 ## 技术栈
 
-- Android: Java, Android SDK, `InputMethodService`, `SpeechRecognizer`, `HttpURLConnection`
-- Backend: Python, FastAPI, Pydantic, SQLite, Uvicorn
-- Agent tools: MemoryTool, PinyinCorrectorTool, LLMRewriteTool
-- Optional ASR: Baidu ASR
-- Optional LLM: OpenAI-compatible relay
+| 模块               | 技术                                                        |
+| ------------------ | ----------------------------------------------------------- |
+| Android 原始输入法 | Java, Android SDK, `InputMethodService`, `SpeechRecognizer` |
+| Android 完整输入法 | Trime, Rime, Kotlin/Java                                    |
+| 后端               | Python, FastAPI, Pydantic, SQLite, Uvicorn                  |
+| 纠错 Agent         | MemoryTool, PinyinCorrectorTool, LLMRewriteTool             |
+| ASR                | Android 系统语音识别，可选 Baidu ASR                        |
+| LLM                | OpenAI-compatible Chat Completions / Responses API          |
 
-## 目录结构
+## 项目结构
 
 ```text
-.
-├── android/                 # Android App 和输入法客户端
-├── backend/                 # FastAPI 后端
-│   ├── app/api/v1/          # API 路由
-│   ├── app/services/        # 纠错、LLM、ASR、Agent 编排
-│   ├── app/schemas/         # Pydantic 模型
-│   └── tests/               # 后端测试
-├── docs/                    # 部署和演示文档
-└── backend_update_cloud.zip # 云端后端更新包
+android/   Android App、原始输入法和 Trime 输入法
+backend/   FastAPI 后端、纠错 Agent、数据存储和调试页面
+docs/      使用、架构、部署和版本说明
 ```
 
-## 快速运行后端
+## Android 使用
+
+安装 APK 后，在系统设置中启用输入法：
+
+```text
+Settings -> System -> Keyboard -> On-screen keyboard -> Manage keyboards
+```
+
+默认后端地址为：
+
+```text
+http://39.106.51.35:8000
+```
+
+如果只是体验 Release 版本，一般不需要修改这个地址。
+
+如果想连接自己的后端，可以在 App 设置页改成自己的服务器地址，例如：
+
+```text
+http://your-server-ip:8000
+```
+
+## 开发和自部署
+
+下面的步骤只面向开发者或想自己部署后端的人。普通 Release 用户不需要执行。
 
 ```bash
 cd backend
@@ -89,14 +133,14 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-健康检查：
+检查服务：
 
 ```bash
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/api/v1/debug/status
 ```
 
-测试文本纠错：
+测试纠错：
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/v1/correct-text" \
@@ -104,152 +148,42 @@ curl -X POST "http://127.0.0.1:8000/api/v1/correct-text" \
   -d "{\"user_id\":\"local_user\",\"raw_text\":\"今天上午上了两节祭祖课\",\"app_context\":\"study\"}"
 ```
 
-## Android 使用方法
+本地调试 Android 时常用后端地址：
 
-1. 启动后端，或使用已经部署好的云端后端。
-2. 用 Android Studio 打开 `android/`。
-3. 连接手机，安装 debug APK。
-4. 打开 App，设置后端地址、用户 ID、场景、语音识别模式。
-5. 在 App 中维护用户画像和专业词库。
-6. 可选：配置 LLM relay 的 `base_url`、`api_key`、`model` 和 `wire_api`。
-7. 到系统输入法设置中启用 `Voice Transform IME`。
-8. 在微信、备忘录、浏览器等任意输入框中切换到该输入法。
-9. 点击语音按钮，说话后等待纠错结果。
-10. 查看原文、纠错文本和本次纠错方法，确认后插入。
+- Android 模拟器访问本机：`http://10.0.2.2:8000`
+- 真机访问电脑：使用电脑局域网 IP，例如 `http://192.168.1.4:8000`
+- 云端后端：`http://39.106.51.35:8000`
 
-常用后端地址：
-
-- Android 模拟器访问本机后端：`http://10.0.2.2:8000`
-- 真机访问电脑后端：使用电脑局域网 IP，例如 `http://192.168.1.4:8000`
-- 默认云端后端：`http://39.106.51.35:8000`
-
-## LLM 配置说明
-
-LLM 是可选能力。后端会保存 LLM 配置，Android App 可以管理配置并测试连接。
-
-支持两种接口格式：
-
-```text
-chat_completions -> POST {base_url}/chat/completions
-responses        -> POST {base_url}/responses
-```
-
-如果使用 micuapi relay，可参考：
-
-```text
-base_url: https://www.micuapi.ai/v1
-model: gpt-5.5
-wire_api: responses
-```
-
-为了排查“到底有没有调用 LLM”，App 内提供了 LLM 调用日志页。后端仅保留最近 50 条纠错阶段日志，包括：
-
-- 原始文本
-- 规则 fallback 文本
-- LLM/最终输出文本
-- 是否调用成功
-- 失败错误信息
-- 使用模型和接口格式
-- trace_id
-
-API：
-
-```bash
-curl "http://127.0.0.1:8000/api/v1/debug/llm-calls?limit=50"
-```
-
-## 调试接口
-
-```bash
-curl http://127.0.0.1:8000/api/v1/debug/status
-curl "http://127.0.0.1:8000/api/v1/debug/traces?limit=10"
-curl "http://127.0.0.1:8000/api/v1/debug/llm-calls?limit=50"
-```
-
-`debug/traces` 会记录 Agent 工具链路：
-
-```text
-MemoryTool -> PinyinCorrectorTool -> LLMRewriteTool
-```
-
-## 构建 Android APK
+## 本地构建
 
 ```powershell
 cd android
 $env:JAVA_HOME='D:\Softs\Android Studio\jbr'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-.\gradlew.bat assembleDebug
+
+# Original IME
+.\gradlew.bat :app:assembleDebug
+
+# Trime IME
+.\gradlew.bat :trime:assembleDebug
 ```
 
-生成文件一般在：
+## 文档
 
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
+- [Original IME 版本说明](docs/version-original-ime.md)
+- [Trime IME 版本说明](docs/version-trime-ime.md)
+- [Release 发布指南](docs/release-guide.md)
+- [项目架构](docs/architecture.md)
+- [使用文档](docs/user_guide.md)
+- [部署服务器](docs/deploy_server.md)
 
-安装到手机：
+## 当前状态
 
-```powershell
-adb install -r .\android\app\build\outputs\apk\debug\app-debug.apk
-```
-
-## 后端测试
-
-```powershell
-cd backend
-python -m unittest discover -s tests
-```
-
-## 云端部署提示
-
-如果手机使用默认云端后端，则修改后端代码后需要重新部署到服务器，手机才能看到新行为。
-
-本项目常用更新包：
-
-```text
-backend_update_cloud.zip
-```
-
-上传和部署大致流程：
-
-```powershell
-scp .\backend_update_cloud.zip root@39.106.51.35:/tmp/backend_update_cloud.zip
-ssh root@39.106.51.35
-```
-
-服务器上执行：
-
-```bash
-cd /opt/voice-transform-backend
-cp -a app "app.bak.$(date +%Y%m%d%H%M%S)"
-unzip -o /tmp/backend_update_cloud.zip -d /opt/voice-transform-backend
-source .venv/bin/activate
-pip install -r requirements.txt
-systemctl restart voice-transform
-```
-
-验证：
-
-```bash
-curl http://39.106.51.35:8000/health
-curl http://39.106.51.35:8000/api/v1/debug/status
-```
+这是一个可运行的项目原型。当前重点是把“输入法入口、上下文记忆、专业词纠错、可选 LLM、纠错 trace”这条链路跑通。后续可以继续完善输入法交互、候选词排序、多用户隔离、端到端测试和正式发布流程。
 
 ## 安全说明
 
 - 不要提交 API key、服务器密码、本地数据库或私有配置。
-- LLM API key 不会在 API 响应中完整返回，只显示 masked key。
+- LLM API key 在接口返回中只显示 masked key。
 - LLM 调用日志不记录 API key。
-- LLM 失败时后端会 fallback，不会因为模型不可用导致输入法完全不可用。
-
-## 项目状态
-
-这是一个可用但仍偏 MVP 的项目。当前重点是证明“上下文感知语音输入纠错”这条链路可行：手机输入法可用、后端纠错可用、个人词库可维护、LLM 可选接入、纠错过程可解释可调试。
-
-后续可以继续改进：
-
-- 更完善的中文拼音/同音纠错算法
-- 更好的输入法 UI 和候选词交互
-- 多用户认证和云端配置隔离
-- 更细粒度的 App 场景上下文
-- 更完整的端到端测试和发布流程
+- LLM 失败时后端会回退到规则纠错。
